@@ -6,7 +6,7 @@ JEM-Mapper has the following dependencies:
 # Build:
 Please specify the k-mer length at the time of building:
 
-For e.g: make ksize=15
+For example: make ksize=15
 
 
 # Execute:
