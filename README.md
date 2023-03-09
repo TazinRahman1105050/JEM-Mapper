@@ -10,7 +10,7 @@ For example: make ksize=15
 
 
 # Execute:
-mpiexec -np $procs $BINARY -s {Input_Sequence_Fasta_file_for_Contigs} -q {Input_Sequence_Fasta_file_for_LongReads} -n $NO_OF_TRIALS
+mpiexec -np $procs $BINARY -s {Contig_Fasta_File} -q {Long_Read_Fasta_File} -n $NO_OF_TRIALS
 
 For example:
 
