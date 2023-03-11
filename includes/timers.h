@@ -7,6 +7,10 @@
 // Washington State University
 
 //
+//For citation, please cite the following paper:
+//An efficient parallel sketch-based algorithm for mapping long reads to contigs.
+//Tazin Rahman, Oieswarya Bhowmik, Ananth Kalyanaraman.
+//Proc. 2023 IEEE International Workshop on High Performance Computational Biology (HiCOMB)
 
 // **************************************************************************************************
 
