@@ -58,25 +58,20 @@ using std::cout; using std::cerr;
 using std::endl; using std::string;
 using std::ifstream; using std::ostringstream;
 
-long int MAX_KMER_COUNT=0;
+
 int rank, size;
 int coverage=0;
 std::string inputFileName;
 std::string queryFileName;
 int read_length=0;
-int num_buckets=0;
-int num_threads=0;
-int num_contigs=0;
+
+
 int node_threashold=0;
 
-int num_batch_transfers=0;
-long int this_contig_id = 0;
 
-std::vector<lmer_t> lmer_frequency(LMER_SIZE,0);
-std::vector<lmer_t> global_lmer_frequency(LMER_SIZE,0);
 
 /* Vector containing k-mers allocated to each process */
-std::vector<KmerPairs> kmer_proc_buf;
+
 std::vector<std::vector<kmer_t>> kmer_sets;
 //std::vector<std::unordered_map<kmer_t, std::vector<int>> > Tl;
 
@@ -100,31 +95,9 @@ int retrieve_proc_id (lmer_t min_lmer)
 
     return proc_num;
 }
-#ifdef EXTEND_KMER
-int retrieve_proc_id (kmer_t min_lmer)
-{
-    //determine which proc holds the l-mer bucket based on a block-cyclic
-    //distribution of buckets across the processes
 
-    //int proc_num = (int)((int)(floor(min_lmer/4)) % (int)size); // static block-cyclic
-    //int proc_num = (int)((int)(hash31(hasha[min_lmer], hashb[min_lmer], min_lmer)) % (int)size); // randomized
 
-    //int proc_num = (int)((int)(hash31(hasha, hashb, min_lmer)) % (int)size); // randomized
-    int proc_num = (int)((int)(uhash31(hasha, hashb, min_lmer)) % (int)size);
 
-    return proc_num;
-}
-#endif
-
-void set_num_threads()
-{
-
-#pragma omp parallel
-{
-    num_threads = omp_get_num_threads();
-}
-
-}
 
 std::string readFileIntoString(const std::string& path) {
     ifstream input_file(path);
@@ -303,7 +276,7 @@ void parseCommandLine(const int argc, char * const argv[])
 {
   int ret;
 
-  while ((ret = getopt(argc, argv, "s:q:b:r:c:t:n:")) != -1) {
+  while ((ret = getopt(argc, argv, "s:q:b:r:n:")) != -1) {
     switch (ret) {
     case 's':
        inputFileName.assign(optarg);
@@ -313,22 +286,12 @@ void parseCommandLine(const int argc, char * const argv[])
        queryFileName.assign(optarg);
        //std::cout << inputFileName << std::endl;
        break;
-    case 'b':
-       MAX_KMER_COUNT = atol(optarg);
-       //std::cout << MAX_KMER_COUNT << std::endl;
-       break;
+    
     case 'r':
        read_length = atoi(optarg);
        //std::cout << read_length << std::endl;
        break;
-    case 'c':
-       coverage = atoi(optarg);
-       //std::cout << coverage << std::endl;
-       break;
-    case 't':
-       num_buckets = atoi(optarg);
-       //std::cout << num_buckets << std::endl;
-       break;
+    
     case 'n':
        node_threashold = atoi(optarg);
        //std::cout << node_threashold << std::endl;
@@ -349,30 +312,21 @@ void parseCommandLine(const int argc, char * const argv[])
 //      MPI_Abort(MPI_COMM_WORLD, -99);
 //  }
 
-  if (!MAX_KMER_COUNT) {
-      MAX_KMER_COUNT=100000000;
-      if (rank==0) std::cout << "batch size not specified with -b, set to default value MAX_KMER_COUNT=100000000" << std::endl;
-  }
+  
 
   if (rank==0 && !read_length) {
       std::cerr << "Must specify read_length with -r" << std::endl;
       MPI_Abort(MPI_COMM_WORLD, -99);
   }
 
-  if (rank==0 && !coverage) {
-      std::cerr << "Must specify coverage of the input data with -c" << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
-  }
+  
 /*
   if (rank==0 && (read_length>250 || read_length<100)) {
       std::cerr << "Must provide short reads of length >100 and <=250 with -r" << std::endl;
       MPI_Abort(MPI_COMM_WORLD, -99);
   }*/
 
-  if (!num_buckets) {
-      num_buckets=21;
-      if (rank==0) std::cout << "num_buckets not specified with -t, set to default value num_buckets=21" << std::endl;
-  }
+ 
 
   if (!node_threashold) {
       node_threashold=100000;
@@ -380,10 +334,10 @@ void parseCommandLine(const int argc, char * const argv[])
   }
 
   if (rank == 0) {
-           printf("K-mer size: %d, L-mer size: %d, Number of Processes: %d, MAX_KMER_COUNT: %ld Coverage: %d,",
-           WINDW_SIZE+1, LMER_LENGTH, size, MAX_KMER_COUNT, coverage);
-           printf("Avg read length: %d, Num buckets: %d, Node threshold: %d\n", 
-           read_length, num_buckets, node_threashold);
+           printf("K-mer size: %d, Number of Processes: %d,",
+           WINDW_SIZE+1, size);
+           printf("Avg read length: %d,  No of Trails: %d\n", 
+           read_length, node_threashold);
   }
 
 
