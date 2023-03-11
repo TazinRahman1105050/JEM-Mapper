@@ -7,7 +7,7 @@ The basic usage is as follows where input_file is the input short read fasta fil
 
 ./minia -in [input file] -kmer-size [kmer size] -out [prefix]
 
-To generate cotigs from Minia assembler, we have used kmer-size as 32
+To generate contigs from Minia assembler, we have used kmer-size as 32.
 
 
 Input long read files are generated using SimIt simulator
