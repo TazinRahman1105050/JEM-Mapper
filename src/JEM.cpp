@@ -1,4 +1,38 @@
+// JEM-Mapper: A C++ implementation for Jaccard Estimate MinHash-based sequence-to-sequence mapping
 
+// Tazin Rahman, Oieswarya Bhowmik, Ananth Kalyanaraman
+
+//      (tazin.rahman@wsu.edu, oieswarya.bhowmik@wsu.edu, ananth@wsu.edu)
+
+// Washington State University
+
+//
+//For citation, please cite the following paper:
+//An efficient parallel sketch-based algorithm for mapping long reads to contigs.
+//Tazin Rahman, Oieswarya Bhowmik, Ananth Kalyanaraman.
+//Proc. 2023 IEEE International Workshop on High Performance Computational Biology (HiCOMB)
+
+// **************************************************************************************************
+
+// Copyright (c) 2023. Washington State University ("WSU"). All Rights Reserved.
+// Permission to use, copy, modify, and distribute this software and its documentation
+// for educational, research, and not-for-profit purposes, without fee, is hereby
+// granted, provided that the above copyright notice, this paragraph and the following
+// two paragraphs appear in all copies, modifications, and distributions. For
+// commercial licensing opportunities, please contact The Office of Commercialization,
+// WSU, 280/286 Lighty, PB Box 641060, Pullman, WA 99164, (509) 335-5526,
+// commercialization@wsu.edu<mailto:commercialization@wsu.edu>, https://commercialization.wsu.edu/
+
+// IN NO EVENT SHALL WSU BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL,
+// OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS, ARISING OUT OF THE USE OF
+// THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF WSU HAS BEEN ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+// WSU SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE AND
+// ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". WSU HAS NO
+// OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+// **************************************************************************************************
 #include <stdio.h>
 #include <mpi.h>
 #include <stdlib.h>
