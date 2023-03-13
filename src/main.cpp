@@ -63,6 +63,9 @@ int rank, size;
 int coverage=0;
 std::string inputFileName;
 std::string queryFileName;
+std::string AFileName;
+std::string BFileName;
+std::string primeFileName;
 int read_length=0;
 
 
@@ -210,63 +213,7 @@ int main(int argc, char **argv) {
     
     double time_l4 = MPI_Wtime ();
     double s_time = time_l4 - time_l3;
-    //printf ("%d Average time for l across all procs (secs): %f \n", rank, s_time);
-#ifndef PERFORM_CONTIG_GENERATION
-
-    free_kmer_count_buffers();
-
-#endif
-
-#ifdef PERFORM_CONTIG_GENERATION
-
-    /************ CONTIG GENERATION BEGINS *******************/
-    /* Phase 1) Macro Node construction and Initial Wiring
-     * Phase 2) Construction of Independent Set. Merge and delete all candidate nodes from Independent set.
-     * Phase 3) Gather all remaining nodes
-     * Phase 4) Enumerate/Generate the contigs with the Walk algorithm
-     */
-
-
-    /* PHASE 1: MACRO NODE CONSTRUCTION */
-//    std::vector<std::pair<kmer_t,MacroNode>> MN_map;
-//    begin_mnode_construction(MN_map);
-
-
-    /* PHASE 1: MACRO NODE WIRING */
-//    initiate_mnode_wiring(MN_map);
-
-#ifdef DEBUG_WIRE_INIT
-    debug_wired_mnodes(MN_map);
-#endif
-
-    /* PHASE 2: INDEPENDENT SET CONSTRUCTION */
     
-    // temp vector for storing all partial contigs generated during Phase 2
-//    std::vector<BasePairVector> partial_contig_list;
-//    size_t global_num_nodes = begin_iterative_compaction(MN_map, partial_contig_list);
-
-//    MPI_Barrier(MPI_COMM_WORLD);
-
-#ifdef COMPACT_PGRAGH
-    //retain a list of terminal prefixes for each individual process, potential begin k-mers
-  //  std::vector<BeginMN> list_of_begin_kmers;
-    //identify_begin_kmers (MN_map, list_of_begin_kmers);
-
-#ifdef DEBUG_BKMERS
-    //debug_begin_kmers_list (MN_map, list_of_begin_kmers);
-#endif
-
-    /* Perform an Allgather such that all macro_nodes are accessible to all procs */
-
-    //std::vector<std::pair<kmer_t,MacroNode>> global_MN_map(global_num_nodes); // new map for storing all the macro_nodes
-    //generate_compacted_pakgraph(MN_map, global_MN_map);
-
-    //traverse_pakgraph(global_MN_map, list_of_begin_kmers, partial_contig_list);
-#endif // end of COMPACT_PGRAGH
-
-#endif // end of PERFORM_CONTIG_GENERATION
-
-   // MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Finalize();
     return 0;
@@ -276,7 +223,7 @@ void parseCommandLine(const int argc, char * const argv[])
 {
   int ret;
 
-  while ((ret = getopt(argc, argv, "s:q:b:r:n:")) != -1) {
+  while ((ret = getopt(argc, argv, "s:q:a:b:p:r:n:")) != -1) {
     switch (ret) {
     case 's':
        inputFileName.assign(optarg);
@@ -286,6 +233,19 @@ void parseCommandLine(const int argc, char * const argv[])
        queryFileName.assign(optarg);
        //std::cout << inputFileName << std::endl;
        break;
+    case 'a':
+       AFileName.assign(optarg);
+       //std::cout << inputFileName << std::endl;
+       break;
+    case 'b':
+       BFileName.assign(optarg);
+       //std::cout << inputFileName << std::endl;
+       break;
+    case 'p':
+       primeFileName.assign(optarg);
+       //std::cout << primeFileName << std::endl;
+       break;
+    
     
     case 'r':
        read_length = atoi(optarg);
@@ -320,25 +280,7 @@ void parseCommandLine(const int argc, char * const argv[])
   }
 
   
-/*
-  if (rank==0 && (read_length>250 || read_length<100)) {
-      std::cerr << "Must provide short reads of length >100 and <=250 with -r" << std::endl;
-      MPI_Abort(MPI_COMM_WORLD, -99);
-  }*/
 
- 
-
-  if (!node_threashold) {
-      node_threashold=100000;
-      if (rank ==0 )std::cout << "node_threashold not specified with -n, set to default value node_threashold=100K" << std::endl;
-  }
-
-  if (rank == 0) {
-           printf("K-mer size: %d, Number of Processes: %d,",
-           WINDW_SIZE+1, size);
-           printf("Avg read length: %d,  No of Trails: %d\n", 
-           read_length, node_threashold);
-  }
 
 
 } // parseCommandLine
