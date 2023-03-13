@@ -23,7 +23,7 @@ Notes:
 # Input arguments meaning
 * -s: input contigs fasta file
 * -q: input long reads fasta file
-* -a: For diffent trials we have used a linear congruential hash funtion of the form: (Ax+B)%P, whwere A and B are integers and P is a prime and x is a kmer we want to hash. SO, using this parameter, we provide the input values for different A values
+* -a: For diffent trials we have used a linear congruential hash funtion of the form: (Ax+B)%P, whwere A and B are integers and P is a prime and x is a kmer we want to hash. So, using this parameter, we provide the input values for different A values
 * -b: input B values
 * -p: input prime numbers
 * -r: read segment length
