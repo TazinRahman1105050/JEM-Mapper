@@ -18,7 +18,7 @@ For example:
 mpiexec -np 4 ./jem -s ~/Ecoli_reads_100x_contigs.fasta -q ~/Ecoli_reads_10x_long_reads.fasta -a ~/A.txt -b ~/B.txt -p ~/Prime.txt -r 1000 -n 30
 
 Notes:
-* We have run our codes in a high-performance computing cluster (HPC) Aeolus. FOr this system we had to set the number of processes in the given way. If you use any other system please change the parameters accordingly
+* This code has been tested on high-performance computing cluster (HPC) with MPI compatibility. For the system we used we had to set the number of processes in the given way. Please change the parameters accordingly.
 
 # Input arguments meaning
 * -s: input contigs fasta file
