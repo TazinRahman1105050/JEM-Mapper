@@ -1,46 +1,38 @@
-// ***********************************************************************
+// JEM-Mapper: A C++ implementation for Jaccard Estimate MinHash-based sequence-to-sequence mapping
+
+// Tazin Rahman, Oieswarya Bhowmik, Ananth Kalyanaraman
+
+//      (tazin.rahman@wsu.edu, oieswarya.bhowmik@wsu.edu, ananth@wsu.edu)
+
+// Washington State University
+
 //
-// PaKman: Algorithm for generating genomic contigs on distributed-memory machines
-// 
-// Priyanka Ghosh (Pacific Northwest National Laboratory)
-// Sriram Krishnamoorthy (Pacific Northwest National Laboratory)
-// Ananth Kalyanaraman (Washington State University)
-//               
-//
-// ***********************************************************************
-//
-//       Copyright (2020) Battelle Memorial Institute
-//                      All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-//
-// 1. Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//
-// 2. Redistributions in binary form must reproduce the above copyright
-// notice, this list of conditions and the following disclaimer in the
-// documentation and/or other materials provided with the distribution.
-//
-// 3. Neither the name of the copyright holder nor the names of its
-// contributors may be used to endorse or promote products derived from
-// this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-// COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-// ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+//For citation, please cite the following paper:
+//An efficient parallel sketch-based algorithm for mapping long reads to contigs.
+//Tazin Rahman, Oieswarya Bhowmik, Ananth Kalyanaraman.
+//Proc. 2023 IEEE International Workshop on High Performance Computational Biology (HiCOMB)
+
+// **************************************************************************************************
+
+// Copyright (c) 2023. Washington State University ("WSU"). All Rights Reserved.
+// Permission to use, copy, modify, and distribute this software and its documentation
+// for educational, research, and not-for-profit purposes, without fee, is hereby
+// granted, provided that the above copyright notice, this paragraph and the following
+// two paragraphs appear in all copies, modifications, and distributions. For
+// commercial licensing opportunities, please contact The Office of Commercialization,
+// WSU, 280/286 Lighty, PB Box 641060, Pullman, WA 99164, (509) 335-5526,
+// commercialization@wsu.edu<mailto:commercialization@wsu.edu>, https://commercialization.wsu.edu/
+
+// IN NO EVENT SHALL WSU BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL,
+// OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS, ARISING OUT OF THE USE OF
+// THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF WSU HAS BEEN ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
+
+// WSU SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+// WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE AND
+// ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". WSU HAS NO
+// OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 //
-// ************************************************************************
 
 #include <mpi.h>
 #include <stdlib.h>
