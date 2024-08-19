@@ -5,7 +5,7 @@ We present an efficient parallel algorithmic workflow, called JEM-mapper, that u
 # Citation information:
 Rahman, Tazin, Oieswarya Bhowmik, and Ananth Kalyanaraman. "An Efficient Parallel Sketch-based Algorithm for Mapping Long Reads to Contigs." 2023 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW). IEEE, 2023. DOI: 10.1109/IPDPSW59300.2023.00037
 
-Rahman, Tazin, Oieswarya Bhowmik, and Ananth Kalyanaraman. "An Efficient Parallel Sketch-based Algorithmic Workflow for Mapping Long Reads." bioRxiv (2023): 2023-11.
+Rahman, Tazin, Oieswarya Bhowmik, and Ananth Kalyanaraman. "An Efficient Parallel Sketch-based Algorithmic Workflow for Mapping Long Reads." bioRxiv (2023): 2023-11. https://doi.org/10.1101/2023.11.28.569084
 
 # Dependencies:
 JEM-Mapper has the following dependencies:
@@ -20,9 +20,6 @@ For example:
 make ksize = 15
 
 # Execute:
-git clone https://github.com/Oieswarya/Maptcha.git
-cd Maptcha
-
 export OMP_NUM_THREADS= $number_of_threads     
 mpiexec -np $number_of_procs $BINARY -s {Contig_Fasta_File} -q {Long_Read_Fasta_File} -a {A_int_Values_File} -b {B_int_Values_File} -p {Prime_int_Values_File} -r $read_segment length -T $NO_OF_TRIALS
 
@@ -40,4 +37,4 @@ Notes:
 * -b: input B values
 * -p: input prime numbers
 * -r: read segment length
-* -n: number of trials
+* -T: number of trials
