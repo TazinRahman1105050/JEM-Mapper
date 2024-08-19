@@ -20,6 +20,9 @@ For example:
 make ksize = 15
 
 # Execute:
+git clone https://github.com/Oieswarya/Maptcha.git
+cd Maptcha
+
 export OMP_NUM_THREADS= $number_of_threads     
 mpiexec -np $number_of_procs $BINARY -s {Contig_Fasta_File} -q {Long_Read_Fasta_File} -a {A_int_Values_File} -b {B_int_Values_File} -p {Prime_int_Values_File} -r $read_segment length -T $NO_OF_TRIALS
 
