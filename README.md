@@ -20,8 +20,12 @@ For example:
 make ksize = 15
 
 # Execute:
+For the multi-threaded version, set the number of threads:
 ```
-export OMP_NUM_THREADS= $number_of_threads     
+export OMP_NUM_THREADS= $number_of_threads
+```
+Run JEM-mapper:
+```
 mpiexec -np $number_of_procs $BINARY -s {Contig_Fasta_File} -q {Long_Read_Fasta_File} -a {A_int_Values_File} -b {B_int_Values_File} -p {Prime_int_Values_File} -r $read_segment length -T $NO_OF_TRIALS
 ```
 
