@@ -3,7 +3,7 @@ We present an efficient parallel algorithmic workflow, called JEM-mapper, that u
 
 
 # Citation information:
-Rahman, Tazin, Oieswarya Bhowmik, and Ananth Kalyanaraman. "An Efficient Parallel Sketch-based Algorithm for Mapping Long Reads to Contigs." 2023 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW). IEEE, 2023. DOI: 10.1109/IPDPSW59300.2023.00037
+Rahman, Tazin, Oieswarya Bhowmik, and Ananth Kalyanaraman. "An Efficient Parallel Sketch-based Algorithm for Mapping Long Reads to Contigs." 2023 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW). IEEE, 2023. https://doi.org/10.1109/IPDPSW59300.2023.00037
 
 Rahman, Tazin, Oieswarya Bhowmik, and Ananth Kalyanaraman. "An Efficient Parallel Sketch-based Algorithmic Workflow for Mapping Long Reads." bioRxiv (2023): 2023-11. https://doi.org/10.1101/2023.11.28.569084
 
