@@ -28,6 +28,16 @@ Run JEM-mapper:
 ```
 mpiexec -np $number_of_procs $BINARY -s {Contig_Fasta_File} -q {Long_Read_Fasta_File} -a {A_int_Values_File} -b {B_int_Values_File} -p {Prime_int_Values_File} -r $read_segment length -T $NO_OF_TRIALS
 ```
+```
+Input arguments 
+* -s: input contigs fasta file
+* -q: input long reads fasta file
+* -a: For diffent trials we have used a linear congruential hash funtion of the form: (Ax+B)%P, whwere A and B are integers and P is a prime and x is a kmer we want to hash. So, using this parameter, we provide the input values for different A values
+* -b: input B values
+* -p: input prime numbers
+* -r: read segment length
+* -T: number of trials
+```
 
 For example: if we want to run it on 8 threads and 4 processes:  
 export OMP_NUM_THREADS=8  
