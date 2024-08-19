@@ -20,10 +20,11 @@ For example:
 make ksize = 15
 
 # Execute:
+export OMP_NUM_THREADS= $number_of_threads
 mpiexec -np $number_of_procs $BINARY -s {Contig_Fasta_File} -q {Long_Read_Fasta_File} -a {A_int_Values_File} -b {B_int_Values_File} -p {Prime_int_Values_File} -r $read_segment length -n $NO_OF_TRIALS
 
-For example:
-
+For example: if we want to run it on 8 threads and 4 processes:
+export OMP_NUM_THREADS=8
 mpiexec -np 4 ./jem -s ~/Ecoli_reads_100x_contigs.fasta -q ~/Ecoli_reads_10x_long_reads.fasta -a ~/A.txt -b ~/B.txt -p ~/Prime.txt -r 1000 -n 30
 
 Notes:
