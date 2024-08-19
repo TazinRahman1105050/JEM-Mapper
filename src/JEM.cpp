@@ -66,33 +66,6 @@ int Px[100];
 
 extern std::vector<std::vector<kmer_t>> kmer_sets;
 
-//extern std::vector<std::unordered_map<kmer_t, std::vector<int>> > Tl(10);
-
-
-void read_array()
-{
-    std::ifstream input(primeFileName);
-
-    for (int i = 0; i < 100; i++) {
-        input >> Px[i];
-        
-        //std::cout<< A[i]<<std::endl;
-    }
-    std::ifstream input1(AFileName);
-
-    for (int i = 0; i < 100; i++) {
-        input1 >> Ax[i];
-        //std::cout<< A[i]<<std::endl;
-    }
-    std::ifstream input2(BFileName);
-
-    for (int i = 0; i < 100; i++) {
-        input2 >> Bx[i];
-        //std::cout<< A[i]<<std::endl;
-    }
-}
-
-
 
 void generate_modified_set(int M, std::vector<std::vector<kmer_t>> &previous_sets)
 {
@@ -409,6 +382,28 @@ void get_hash_value(kmer_t **A1, int M, kmer_t **Prefix)
     }
     kmer_sets.clear();
     kmer_sets.shrink_to_fit();
+}
+void read_array()
+{
+    std::ifstream input(primeFileName);
+
+    for (int i = 0; i < 100; i++) {
+        input >> Px[i];
+        
+        //std::cout<< A[i]<<std::endl;
+    }
+    std::ifstream input1(AFileName);
+
+    for (int i = 0; i < 100; i++) {
+        input1 >> Ax[i];
+        //std::cout<< A[i]<<std::endl;
+    }
+    std::ifstream input2(BFileName);
+
+    for (int i = 0; i < 100; i++) {
+        input2 >> Bx[i];
+        //std::cout<< A[i]<<std::endl;
+    }
 }
 
 void get_hash_value_queires1(std::vector<std::vector<kmer_t>> &modified_sets, kmer_t **A1)
