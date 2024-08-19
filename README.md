@@ -1,4 +1,4 @@
-We present an efficient parallel algorithmic workflow, called JEM-mapper, that uses a new minimizer-based Jaccard estimator (or JEM) sketch to perform alignment-free mapping of long reads
+We present an efficient parallel algorithmic workflow, called JEM-mapper, that uses a new minimizer-based Jaccard estimator (or JEM) sketch to perform alignment-free mapping of long reads. We are able to implement and test this new multithreaded extension to the code (MPI+OpenMP multithreading). 
 ![image](https://github.com/user-attachments/assets/e0df386c-64a4-4237-800d-648af513b4e1)
 
 
