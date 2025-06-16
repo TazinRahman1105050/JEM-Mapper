@@ -1,3 +1,4 @@
+
 // JEM-Mapper: A C++ implementation for Jaccard Estimate MinHash-based sequence-to-sequence mapping
 
 // Tazin Rahman, Oieswarya Bhowmik, Ananth Kalyanaraman
@@ -287,7 +288,7 @@ input_read_data perform_input_reading (const int rank, const int size,
     input_rdata.read_data_size = read_data_size;
     MPI_Scan(&nlines, &localsum, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);  
     input_rdata.start_index =  localsum-nlines;
-
+    input_rdata.local_count =  nlines;
 #ifdef DEBUG_OUT
     printf("Rank %d has %d lines\n", rank, nlines);
 #endif
@@ -311,13 +312,14 @@ input_read_data perform_input_reading (const int rank, const int size,
     if (rank == 0) printf ("Average time for reading and storing the Reads in each proc's memory (secs): %f \n", 
                             (double)global_input_process_time);
 
-    MPI_Reduce (&nlines, &global_nlines, 1, MPI_UINT64_T, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Allreduce (&nlines, &global_nlines, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+    input_rdata.total =  global_nlines;
     if (rank == 0) printf ("Total number of reads: %lu\n", global_nlines);
     if (rank == 0) fprintf (stderr, "Total number of reads: %lu\n", global_nlines);
 
     if (rank==0)
         fprintf(stderr, "Completed Reading the input dataset\n");
-
+    
     return input_rdata;
 
 }

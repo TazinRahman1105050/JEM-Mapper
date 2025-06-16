@@ -68,8 +68,8 @@ std::string primeFileName;
 std::string AFileName;
 std::string BFileName;
 int read_length=0;
-
-int node_threashold=0;
+int w_size=0;
+int no_trials=0;
 
 int num_batch_transfers=0;
 
@@ -127,10 +127,9 @@ int main(int argc, char **argv) {
     //std::cout<<std::to_string(rank)<<" - "<<inputName<<"\n";
     double time_l1 = MPI_Wtime ();
     
-    //input_read_data cdata = perform_input_reading(rank, size, inputFileName, 108539);
-   // input_read_data cdata = perform_input_reading(rank, size, inputFileName, 25980); //34680 //25980 EC //27586 PA
-    input_read_data cdata = perform_input_reading(rank, size, inputFileName, 127978);
-    //input_read_data rdata = perform_input_readingC(rank, size, inputName, read_length);
+    /* read input subjects */
+    input_read_data sdata = perform_input_reading(rank, size, inputFileName, 5000000);
+    //input_read_data rdata = perform_input_readingC(rank, size, queryFileName, read_length);
     
     //string file_contents;
     //size_t file_size;
@@ -149,10 +148,10 @@ int main(int argc, char **argv) {
     int M;
     int total_subjects;
     
-    
-    input_read_data rdata = perform_input_reading(rank, size, queryFileName, read_length);
+    /* read input queries */
+    input_read_data qdata = perform_input_reading(rank, size, queryFileName, read_length);
     double time_l3 = MPI_Wtime ();
-    generate_set_of_subjects (cdata.read_data, cdata.read_data_size, cdata.start_index, rdata.read_data, rdata.read_data_size, rdata.start_index, &M, &total_subjects);
+    generate_set_of_subjects (sdata.read_data, sdata.read_data_size, sdata.start_index, qdata.read_data, qdata.read_data_size, qdata.start_index, qdata.total, &M, &total_subjects);
     //int total_number_of_subs_in_p = kmer_sets.size();
     //kmer_t** Hash_table = new kmer_t*[total_subjects];
     
@@ -206,7 +205,7 @@ int main(int argc, char **argv) {
     
     double time_l4 = MPI_Wtime ();
     double s_time = time_l4 - time_l3;
-    //printf ("%d Average time for l across all procs (secs): %f \n", rank, s_time);
+    //printf ("%d Total time  %f \n", rank, s_time);
 
     MPI_Finalize();
     return 0;
@@ -216,7 +215,7 @@ void parseCommandLine(const int argc, char * const argv[])
 {
   int ret;
 
-  while ((ret = getopt(argc, argv, "s:q:p:a:b:l:n:")) != -1) {
+  while ((ret = getopt(argc, argv, "s:q:p:a:b:t:w:l:")) != -1) {
     switch (ret) {
     case 's':
        inputFileName.assign(optarg);
@@ -238,15 +237,20 @@ void parseCommandLine(const int argc, char * const argv[])
        BFileName.assign(optarg);
        //std::cout << MAX_KMER_COUNT << std::endl;
        break;
+    case 't':
+       no_trials = atoi(optarg);
+       //std::cout << no_trials << std::endl;
+       break;
+    case 'w':
+       w_size = atoi(optarg);
+       //std::cout << no_trials << std::endl;
+       break;
     case 'l':
        read_length = atoi(optarg);
        //std::cout << read_length << std::endl;
        break;
     
-    case 'n':
-       node_threashold = atoi(optarg);
-       //std::cout << node_threashold << std::endl;
-       break;
+    
     default:
        assert(0 && "Should not reach here!!");
        break;

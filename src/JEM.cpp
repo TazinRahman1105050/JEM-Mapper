@@ -55,21 +55,65 @@ using std::ifstream; using std::ostringstream;
 
 extern int rank, size;
 extern int num_threads;
-extern int node_threashold;
+extern int no_trials;
+extern int read_length;
+extern int w_size;
 extern std::string primeFileName;
 extern std::string AFileName;
 extern std::string BFileName;
 
-int Ax[100];
-int Bx[100];
-int Px[100];
+int Ax[150];
+int Bx[150];
+int Px[150];
 
 extern std::vector<std::vector<kmer_t>> kmer_sets;
 
+//extern std::vector<std::unordered_map<kmer_t, std::vector<int>> > Tl(10);
+
+
+void read_array()
+{
+    std::ifstream input(primeFileName);
+
+    for (int i = 0; i < 150; i++) {
+        input >> Px[i];
+        
+        //std::cout<< A[i]<<std::endl;
+    }
+    std::ifstream input1(AFileName);
+
+    for (int i = 0; i < 150; i++) {
+        input1 >> Ax[i];
+        //std::cout<< A[i]<<std::endl;
+    }
+    std::ifstream input2(BFileName);
+
+    for (int i = 0; i < 150; i++) {
+        input2 >> Bx[i];
+        //std::cout<< A[i]<<std::endl;
+    }
+}
+
+// Custom reduction function — this controls how subjects are reduced across processes.
+void reduce_subjects(void* in, void* inout, int* len, MPI_Datatype* datatype) {
+    auto* inArr = static_cast<SubjectMapping*>(in);      // Incoming array from other process
+    auto* inoutArr = static_cast<SubjectMapping*>(inout); // Current "combined" array so far
+
+    for (int i = 0; i < *len; ++i) {
+        if (inArr[i].extn > inoutArr[i].extn) {
+            inoutArr[i] = inArr[i];  // Keep the one with higher count
+        } else if (inArr[i].extn == inoutArr[i].extn) {
+            // Optional tie-break: if counts are the same, keep lower q_id
+            if (inArr[i].q_id < inoutArr[i].q_id) {
+                inoutArr[i] = inArr[i];
+            }
+        }
+    }
+}
 
 void generate_modified_set(int M, std::vector<std::vector<kmer_t>> &previous_sets)
 {
-    kmer_t start_kmer_for_modified_set = (1UL<<(2*10)); //C followed by AAA...s
+    kmer_t start_kmer_for_modified_set = (1UL<<(2*KMER_LENGTH)); //C followed by AAA...s
     //printf("%d () %ld\n",rank, start_kmer_for_modified_set);
     //int update = 0;
     for(int i = 0; i<previous_sets.size(); i++)
@@ -90,7 +134,7 @@ void generate_modified_set(int M, std::vector<std::vector<kmer_t>> &previous_set
 void generate_modified_set_queries(int M, std::vector<std::vector<kmer_t>> &previous_sets)
 {
    // std::cout<<"\n";
-    kmer_t start_kmer_for_modified_set = (1UL<<(2*10)); //C followed by AAA...s
+    kmer_t start_kmer_for_modified_set = (1UL<<(2*KMER_LENGTH)); //C followed by AAA...s
     //printf("%d () %ld\n",rank, start_kmer_for_modified_set);
     int update = 0;
     for(int i = 0; i<previous_sets.size(); i++)
@@ -118,9 +162,9 @@ void recalculate_min_lmer (kmer_t kmer_in, lmer_t *m_lmer, lmer_t *m_lmer_freq, 
     lmer_t min_lmer_freq=0, tmp_lmer_freq=0;
     int min_pos=0, k=0;
 
-    for (k=0; ((10-1) - k) >= (10-1); k++) {
+    for (k=0; ((10-1) - k) >= (KMER_LENGTH-1); k++) {
         lmer_t lmer_out=0;
-        for(int j=k; j<10+k; j++) {
+        for(int j=k; j<KMER_LENGTH+k; j++) {
             lmer_out = kmer_to_lmer (kmer_in, j, lmer_out);
         }
 
@@ -140,16 +184,18 @@ void recalculate_min_lmer (kmer_t kmer_in, lmer_t *m_lmer, lmer_t *m_lmer_freq, 
            }
         }
     }
-    assert (k == (10-10+1));
+    assert (k == (10-KMER_LENGTH+1));
 
     *m_lmer = min_lmer;
     *m_lmer_freq = min_lmer_freq;
     *m_pos = min_pos;
 }
 */
+
+/* Get minimizer */
 void recalculate_min_kmer (std::string ptr, kmer_t *m_kmer, int *fact, int *pos)
 {
-    kmer_t min_lmer=3074457345618258602, tmp_lmer=0;
+    kmer_t min_kmer=3074457345618258602, tmp_kmer=0;
     //lmer_t min_lmer_freq=0, tmp_lmer_freq=0;
     //int min_pos=0, k=0;
 
@@ -159,17 +205,17 @@ void recalculate_min_kmer (std::string ptr, kmer_t *m_kmer, int *fact, int *pos)
     //std::string s;
     int tracker = 0;
     //int contig_len = 0;
-    int tt = 0; //tracking N
+    int special_char= 0; //tracking N
     //std::cout << ptr<<"\n";
-    for(int i=0; i<16-1; i++) {
+    for(int i=0; i<KMER_LENGTH-1; i++) {
             //N Cheking
-        if(tt > 0)
+        if(special_char> 0)
         {
-            tt--;
+           special_char--;
         }
         if (ptr[i] == 'N' || ptr[i] == 'Y' || ptr[i] == 'S' || ptr[i] == 'R' || ptr[i] == 'I' || ptr[i] == 'E' || ptr[i] == 'K')
         {
-            tt = 16;
+            special_char= KMER_LENGTH;
         }
             //N Checking
       //kmer = (kmer_t)((kmer<<2) | (kmer_t)(convert_to_int(ptr[p]))) & (kmer_t)KMER_MASK;
@@ -184,66 +230,43 @@ void recalculate_min_kmer (std::string ptr, kmer_t *m_kmer, int *fact, int *pos)
         //    contig_len++;
     }
     int start = 0;
-    for(int i=16-1; i < 100; i++) {
-    //while(p<length && !isspace(ptr[p])) {
-      //kmer = (kmer_t)((kmer<<2) | (kmer_t)(convert_to_int(ptr[p]))) & (kmer_t)KMER_MASK;
-            //N Cheking
-            if(tt > 0)
+    for(int i=KMER_LENGTH-1; i < w_size; i++) {
+    ;
+            //Special character Cheking
+            if(special_char> 0)
             {
-                tt--;
+               special_char--;
             }
             if (ptr[i] == 'N' || ptr[i] == 'Y' || ptr[i] == 'S' || ptr[i] == 'R' || ptr[i] == 'I' || ptr[i] == 'E' || ptr[i] == 'K')
             {
-                tt = 16;
+                special_char= KMER_LENGTH;
             }
             //N Checking
             
             kmer = kmer_shift(kmer, char_to_el(ptr[i]));
-            /*if (i == 16 -1)
+            
+            if(special_char<= 0)
             {
+                tracker = 1; // the vaialble tracker check if any window a minimizer is picked or not
                 
-                printf("+-%ld-+\n", kmer); 
-            }*/
-            //recalculate_min_lmer(kmer, &min_kmer, &min_lmer_freq, &min_pos);
-            /*if(rank == 0 && chkr == 0)
-            {
-                //printf("rank %d , %ld\n", rank, kmer);
-                chkr += 1;
-            }*/
-            //s.push_back(convert_to_char(ptr[p]));
-            //s.push_back(ptr[p]);
-            //p++;
-            //contig_len++;
-            //rev_set.push_back(kmer);
-            /*if (tt > 0)
-            {
-                //rev_set_tracker.push_back(0);
-                //tracker = 0; 
-            }*/
-            if(tt <= 0)
-            {
-                tracker = 1;
-                //rev_set_tracker.push_back(1);
-                if (min_lmer > kmer)
+                if (min_kmer > kmer)
                 {
-                    min_lmer = kmer;
-                    start = i - 15;
+                    min_kmer = kmer;
+                    start = i - KMER_LENGTH;
                 }
             }
-            //start += 1;
-        } 
-    *m_kmer = min_lmer;
+            
+    } 
+    *m_kmer = min_kmer;
     //*m_lmer_freq = min_lmer_freq;
     *fact = tracker;
     *pos = start;
-    
 }
-
 
 /*
 void get_hash_value(std::vector<kmer_t> previous_sets, int *A1, int *A2, int *A3, int *A4, int *A5)
 {
-    int min1=1047483647, min2=1047483647, min3=1047483647, min4=1047483647, min5=1047483647;
+    int min1=KMER_LENGTH47483647, min2=KMER_LENGTH47483647, min3=KMER_LENGTH47483647, min4=KMER_LENGTH47483647, min5=KMER_LENGTH47483647;
     for(int i = 0; i<previous_sets.size(); i++)
     {
         int val = previous_sets[i]%27644437;
@@ -261,7 +284,7 @@ void get_hash_value(std::vector<kmer_t> previous_sets, int *A1, int *A2, int *A3
         {
             min3 = val2;
         }
-        int val3 = previous_sets[i]%110109;
+        int val3 = previous_sets[i]%1KMER_LENGTH109;
         if(val3<min4)
         {
             min4 = val3;
@@ -285,15 +308,15 @@ void prefix_val(kmer_t **A1, int M)
 {
     //for(int j = 0; j<kmer_sets.size(); j++)
     //{
-    //int min1=1047483647, min2=1047483647, min3=1047483647, min4=1047483647, min5=1047483647;
+    //int min1=KMER_LENGTH47483647, min2=KMER_LENGTH47483647, min3=KMER_LENGTH47483647, min4=KMER_LENGTH47483647, min5=KMER_LENGTH47483647;
         kmer_t Max_kmer_val = 3074457345618258602;
-        std::vector<kmer_t> minL (100,Max_kmer_val);
-        std::vector<kmer_t> corr_kmer (100,3074457345618258602);
+        std::vector<kmer_t> minL (w_size,Max_kmer_val);
+        std::vector<kmer_t> corr_kmer (w_size,3074457345618258602);
         kmer_t start_kmer_for_modified_set = (1UL<<(2*KMER_LENGTH));
         for(int i = 0; i<M; i++)
         {
             kmer_t new_k = start_kmer_for_modified_set+i;
-            for (int k = 0; k < 100; k++)
+            for (int k = 0; k < w_size; k++)
             {
                // if(j == 0 && rank == 0 && i == 0)
                 //{   
@@ -327,14 +350,14 @@ void get_hash_value(kmer_t **A1, int M, kmer_t **Prefix)
 {
     for(int j = 0; j<kmer_sets.size(); j++)
     {
-    //int min1=1047483647, min2=1047483647, min3=1047483647, min4=1047483647, min5=1047483647;
+    //int min1=KMER_LENGTH47483647, min2=KMER_LENGTH47483647, min3=KMER_LENGTH47483647, min4=KMER_LENGTH47483647, min5=KMER_LENGTH47483647;
         kmer_t Max_kmer_val = 3074457345618258602;
-        std::vector<kmer_t> minL (100,Max_kmer_val);
-        std::vector<kmer_t> corr_kmer (100,3074457345618258602);
+        std::vector<kmer_t> minL (w_size,Max_kmer_val);
+        std::vector<kmer_t> corr_kmer (w_size,3074457345618258602);
     
         for(int i = 0; i<kmer_sets[j].size(); i++)
         {
-            for (int k = 0; k < 100; k++)
+            for (int k = 0; k < w_size; k++)
             {
                // if(j == 0 && rank == 0 && i == 0)
                 //{   
@@ -354,7 +377,7 @@ void get_hash_value(kmer_t **A1, int M, kmer_t **Prefix)
             }
         
         }
-        for (int k = 0; k < 100; k++)
+        for (int k = 0; k < w_size; k++)
         {
             kmer_t prefix = Prefix[k][M-kmer_sets[j].size()-1];
             kmer_t p_val = (Ax[k]*prefix + Bx[k]) % Px[k];
@@ -383,28 +406,6 @@ void get_hash_value(kmer_t **A1, int M, kmer_t **Prefix)
     kmer_sets.clear();
     kmer_sets.shrink_to_fit();
 }
-void read_array()
-{
-    std::ifstream input(primeFileName);
-
-    for (int i = 0; i < 100; i++) {
-        input >> Px[i];
-        
-        //std::cout<< A[i]<<std::endl;
-    }
-    std::ifstream input1(AFileName);
-
-    for (int i = 0; i < 100; i++) {
-        input1 >> Ax[i];
-        //std::cout<< A[i]<<std::endl;
-    }
-    std::ifstream input2(BFileName);
-
-    for (int i = 0; i < 100; i++) {
-        input2 >> Bx[i];
-        //std::cout<< A[i]<<std::endl;
-    }
-}
 
 void get_hash_value_queires1(std::vector<std::vector<kmer_t>> &modified_sets, kmer_t **A1)
 {
@@ -413,13 +414,13 @@ void get_hash_value_queires1(std::vector<std::vector<kmer_t>> &modified_sets, km
     //std::cout<<oq<< " "<<tq<<"\n";
     for(int j = 0; j<modified_sets.size(); j++)
     {
-    //int min1=1047483647, min2=1047483647, min3=1047483647, min4=1047483647, min5=1047483647;
-        std::vector<kmer_t> minL (100,3074457345618258602);
-        std::vector<kmer_t> corr_kmer (100,3074457345618258602);
+    //int min1=KMER_LENGTH47483647, min2=KMER_LENGTH47483647, min3=KMER_LENGTH47483647, min4=KMER_LENGTH47483647, min5=KMER_LENGTH47483647;
+        std::vector<kmer_t> minL (w_size,3074457345618258602);
+        std::vector<kmer_t> corr_kmer (w_size,3074457345618258602);
     
         for(int i = 0; i<modified_sets[j].size(); i++)
         {
-            for (int k = 0; k < 100; k++)
+            for (int k = 0; k < w_size; k++)
             {
                 //if(j == 0 && rank == 0)
                 //{   
@@ -465,7 +466,7 @@ void get_hash_value_queires1(std::vector<std::vector<kmer_t>> &modified_sets, km
             }
         
         }
-        for (int k = 0; k < 100; k++)
+        for (int k = 0; k < w_size; k++)
         {
             A1[j][k] = corr_kmer[k];
             //if(j == 0 && rank == 0)
@@ -495,10 +496,10 @@ void get_hash_value_queires(std::vector<std::vector<kmer_t>> &modified_sets, kme
     //std::cout<<oq<< " "<<tq<<"\n";
     for(int j = 0; j<modified_sets.size(); j++)
     {
-    //int min1=1047483647, min2=1047483647, min3=1047483647, min4=1047483647, min5=1047483647;
-        //std::vector<kmer_t> minL (100,1074457345618108602);
-        //std::vector<kmer_t> corr_kmer (100,1074457345618108602);
-        for (int k = 0; k < 100; k++)
+    //int min1=KMER_LENGTH47483647, min2=KMER_LENGTH47483647, min3=KMER_LENGTH47483647, min4=KMER_LENGTH47483647, min5=KMER_LENGTH47483647;
+        //std::vector<kmer_t> minL (w_size,1074457345618108602);
+        //std::vector<kmer_t> corr_kmer (w_size,1074457345618108602);
+        for (int k = 0; k < w_size; k++)
         {
             min_val = Px[k];
             for(int i = 0; i<modified_sets[j].size(); i++)
@@ -514,7 +515,7 @@ void get_hash_value_queires(std::vector<std::vector<kmer_t>> &modified_sets, kme
             }
             A1[j][k] = corr_k;
         }
-        /*for (int k = 0; k < 100; k++)
+        /*for (int k = 0; k < w_size; k++)
         {
             A1[j][k] = corr_kmer[k];
             //if(j == 0 && rank == 0)
@@ -584,19 +585,17 @@ char convert_to_char (char given_char, int len, int id)
 }
 
 void Sliding_window_queires (char *ptr, size_t length, int *num_queries,
-                     std::vector<std::unordered_map<kmer_t, std::vector<int>> > Tl, int start, int total_subjects, int total_q)
+                     std::vector<std::unordered_map<kmer_t, std::vector<int>> > Index_table, int start, int total_subjects, int total_q)
 {
     size_t p=0;
-    size_t pl = 0;
     int max_set_length = 0;
-    std::vector<std::string> string_set;
     std::vector<kmer_t> kmer_set;
-    std::vector<kmer_t> rev_set;
-    std::vector<kmer_t> hash_kmers;
-    std::vector<int> rev_set_tracker;
     std::vector<kmer_t> set_of_distinct_kmers;
+    std::vector<kmer_t> forward_set;
+    std::vector<kmer_t> hash_kmers;
+    std::vector<int> forward_set_tracker;
     int total_queries = 0;
-    const std::string s0("Mp1_all_mn_out_");
+    const std::string s0("Map_out_");
     char proc_id[3];
     char output_file_name[25];
     
@@ -611,24 +610,32 @@ void Sliding_window_queires (char *ptr, size_t length, int *num_queries,
         printf("Error opening file!\n");
         exit(1);
     }
-    TopHit** th_per_thread = (TopHit**)calloc(32, sizeof(TopHit*));
-    for (int t = 0; t < 32; ++t) {
-        th_per_thread[t] = (TopHit*)calloc(total_subjects + 1, sizeof(TopHit));
-    }
+    
     //TopHit th[10] = {0};
     //std::cout<< th[2].sub<<" "<<th[2].score<<"\n";
-    //TopHit *th = (TopHit *)calloc(total_subjects+1, sizeof(TopHit));
-    //omp_lock_t* locks = (omp_lock_t*)calloc(total_subjects + 1, sizeof(omp_lock_t));
-    /*for (int i = 0; i <= total_subjects; ++i) {
-        omp_init_lock(&locks[i]);
-    }*/
-    for(; ptr[pl]!='>' && pl<length; pl++) { }
+    TopHit *th = (TopHit *)calloc(total_subjects+1, sizeof(TopHit));
+    //int x;
+    //std::cout<< th[no_trials].sub<<" "<<th[no_trials].score<< " "<< th[KMER_LENGTH].sub<<" "<<th[KMER_LENGTH].score<<"\n";
+    //std::vector<int> min_val (w_size);
+    //std::vector<kmer_t> corr_k (w_size);
+    
+    
+    for(; ptr[p]!='>' && p<length; p++) { }
 
  
-    
-    int num_threads;
-    //#pragma omp parallel for
-    for(size_t p = pl; p<length; p++) {
+    kmer_t kmer = 0; 
+    kmer_t min_kmer = 0;
+    kmer_t rev_min_kmer = 0;
+    kmer_t rev_kmer = 0; 
+    kmer_t min_lmer_freq = 0; 
+    int min_tracker = 0; 
+    int min_pos = 0;
+    int min_val;
+    int val;
+    int p1 = 73;
+    int p2 = 31;
+    kmer_t corr_k;
+    while(p<length) {
         //std::cout<<ptr[p];
         assert(ptr[p]=='>'); 
         //std::cout<<ptr[p];
@@ -638,540 +645,227 @@ void Sliding_window_queires (char *ptr, size_t length, int *num_queries,
         p++; 
         total_queries++;
 
-        
-        std::string str;
-        for(int i=0; !isspace(ptr[p]) && i<100-1; i++) {
-            //N Cheking
-            
-            str.push_back(ptr[p]);
-            p++;
-            
-        }
-        //int chkr = 0;
-        /*
-        if (rank == 9)
-        {
-        printf("%d {---} %d\n", rank, contig_len);
-        }*/
-        while(p<length && !isspace(ptr[p])) {
-      
-            str.push_back(ptr[p]);
-            //s.push_back(ptr[p]);
-            p++;
-            
-        } 
-        
-        if(str.size() >100)
-        {  
-            string_set.push_back(str);
-        }
-        p++; 
-        
-    }
-    free(ptr);
-    //int elements = 0;
-        //#pragma omp parallel for private( kmer, rev_kmer, min_kmer, min_pos, m_pos,rev_set, rev_set_tracker,kmer_set,set_of_distinct_kmers , st, elements, i, k, it) shared(f, total_queries,  string_set, Px, Ax, Bx, Tl,th)
-    int contig_len = 0;
-    int ii = 0;
-            //std::string s;
-            //std::string str;
-            //contig_len = 0;
-    int tt = 0;
-        //#pragma omp parallel for reduction(+:contig_len) private( ii) shared( total_queries,  string_set)
-    //std::vector<kmer_t> kmer_set;
-    //std::vector<kmer_t> rev_set;
-    //std::vector<int> rev_set_tracker;
-    //std::vector<kmer_t> set_of_distinct_kmers;
-    
-    //#pragma omp parallel for private( total_queries,  string_set, rev_set, rev_set_tracker) shared()
-    #pragma omp parallel for private( total_queries,  string_set, rev_set, rev_set_tracker, kmer_set, set_of_distinct_kmers, node_threashold, Ax, Bx, Px, Tl, th_per_thread, start) shared(f)
-    for (int st = 0; st < total_queries; st++) {
-        
-        kmer_t corr_k;
-        int t = omp_get_thread_num();
-        std::string current_string = string_set[st];
-            kmer_t kmer = 0;
-            kmer_t rev_kmer = 0;
-            kmer_t min_kmer = 0;
-            kmer_t rev_min_kmer = 0;
-            int min_pos = 0;
-            int m_pos = 0;
-            int min_val;
-            int val;
-            //int tt = 0;
-            std::string s, str;
-
-            for (size_t ii = 0; ii < current_string.size() && ii < 100 - 1; ii++) {
-                //if (tt > 0) tt--;
-                //if (current_string[ii] == 'N' || current_string[ii] == 'Y' || current_string[ii] == 'S' || current_string[ii] == 'R' || current_string[ii] == 'I' || current_string[ii] == 'E') tt = 100;
-                //#pragma omp critical
-                //{
-                s.push_back(convert_to_char(current_string[ii], contig_len, total_queries));
-                str.push_back(current_string[ii]);
-                contig_len++;
-                //}
-            }
-
-            while (ii < current_string.size()) {
-                //if (tt > 0) tt--;
-                //if (current_string[ii] == 'N' || current_string[ii] == 'Y' || current_string[ii] == 'S' || current_string[ii] == 'R' || current_string[ii] == 'I' || current_string[ii] == 'E') tt = 100;
-                
-                //#pragma omp critical
-                //{
-                s.push_back(convert_to_char(current_string[ii], contig_len, total_queries));
-                str.push_back(current_string[ii]);
-                contig_len++;
-                
-                recalculate_min_kmer(str.substr(contig_len - 100, 100), &min_kmer, &min_pos, &m_pos);
-                rev_set.push_back(min_kmer);
-                rev_set_tracker.push_back(min_pos > 0 ? 1 : 0);
-                //}
-                ii++;
-            }
-            
-            int tracker = 0;
-            int itr = 0;
-            reverse(s.begin(), s.end());
-            for(int i=0; i<100-1; i++) {
-      
-            tracker++;
-            
-            
-        }
-        while(tracker<contig_len) {
-            
-            tracker++;
-            recalculate_min_kmer(s.substr(tracker - 100, 100), &rev_min_kmer, &min_pos, &m_pos);
-            if(rev_min_kmer <= rev_set[contig_len-100-itr])
-            {
-                if(rev_set_tracker[contig_len-100-itr] == 1)
-                {
-                    kmer_set.push_back(rev_min_kmer);
-                }
-            }
-            else
-            {
-                if(rev_set_tracker[contig_len-100-itr] == 1)
-                {
-                    kmer_set.push_back(rev_set[contig_len-100-itr]);
-                }
-            }
-            
-            itr++;
-      
-        }
-        rev_set.clear();
-        rev_set.shrink_to_fit(); 
-        rev_set_tracker.clear();
-        rev_set_tracker.shrink_to_fit(); 
-         
-        if(kmer_set.size() > 0)
-        {
-        kmer_t prev=kmer_set[0];
-        
-        int i ;
-        for(i = 1; i < (int)(kmer_set.size()); i++)
-        {
-			     if (kmer_set[i] != prev) {
-			         set_of_distinct_kmers.push_back(prev);
-               prev=kmer_set[i];
-               
-               
-			     }
-		     
-        }
-                  
-        set_of_distinct_kmers.push_back(prev);
-        
-        
-        //std::unordered_map<int, int> umap;
-        int sub = 0;
-        int top_hit = 0;
-        for (int k = 0; k < node_threashold; k++)
-        {
-            
-            min_val = Px[k];
-            
-            for(int i = 0; i<set_of_distinct_kmers.size(); i++)
-            {
-                
-                
-                val = int((Ax[k] * set_of_distinct_kmers[i] + Bx[k])%Px[k]);
-                
-                if (val < min_val)
-                {
-                    //A1[j][k] = modified_sets[j][i];
-                    corr_k = set_of_distinct_kmers[i];
-                    min_val = val;
-                    
-                }
-            }
-            
-            
-            auto it = Tl[k].find(corr_k);
-            if(it != Tl[k].end())
-            {
-               
-                for (int elements = 0; elements < it->second.size(); elements++)
-                {
-                    
-                    
-                    if (th_per_thread[t][it->second[elements]].sub == total_queries)
-                    {
-                        th_per_thread[t][it->second[elements]].score += 1;
-                        if (top_hit < th_per_thread[t][it->second[elements]].score)
-                        {
-                            top_hit = th_per_thread[t][it->second[elements]].score;
-                            sub = it->second[elements];
-                        }
-                    }
-                    else
-                    {
-                        th_per_thread[t][it->second[elements]].sub = total_queries;
-                        th_per_thread[t][it->second[elements]].score = 1;
-                        if (top_hit < th_per_thread[t][it->second[elements]].score)
-                        {
-                            top_hit = th_per_thread[t][it->second[elements]].score;
-                            sub = it->second[elements];
-                        }
-                        
-                    }
-                }
-                
-                
-            }
-            /*if (it != Tl[k].end()) {
-        // Parallelize the loop over the elements in it->second
-        
-        for (int elements = 0; elements < it->second.size(); elements++) {
-            int index = it->second[elements];
-            
-            // Lock the element in th before updating
-            omp_set_lock(&locks[index]);
-
-            if (th[index].sub == total_queries) {
-                th[index].score += 1;
-                if (top_hit < th[index].score) {
-                    top_hit = th[index].score;
-                    sub = index;
-                }
-            } else {
-                th[index].sub = total_queries;
-                th[index].score = 1;
-                if (top_hit < th[index].score) {
-                    top_hit = th[index].score;
-                    sub = index;
-                }
-            }
-
-            // Unlock the element in th after updating
-            omp_unset_lock(&locks[index]);
-        }
-    }*/
-            /*if(it != Tl[k].end())
-            {
-               
-                for (int elements = 0; elements < it->second.size(); elements++)
-                {
-                    
-                    
-                    if (th[it->second[elements]].sub == total_queries)
-                    {
-                        th[it->second[elements]].score += 1;
-                        if (top_hit < th[it->second[elements]].score)
-                        {
-                            top_hit = th[it->second[elements]].score;
-                            sub = it->second[elements];
-                        }
-                    }
-                    else
-                    {
-                        th[it->second[elements]].sub = total_queries;
-                        th[it->second[elements]].score = 1;
-                        if (top_hit < th[it->second[elements]].score)
-                        {
-                            top_hit = th[it->second[elements]].score;
-                            sub = it->second[elements];
-                        }
-                        
-                    }
-                }
-                
-                
-            }*/
-            
-        }
-        
-        if (top_hit > 1)
-        {
-            
-                fprintf(f,"%d %d %d\n",  start + total_queries - 1, sub - 1, top_hit);
-            
-        }
-        
-        
-        
-        
-        }
-        
-               
-        kmer_set.clear();
-        kmer_set.shrink_to_fit();
-        set_of_distinct_kmers.clear();
-        set_of_distinct_kmers.shrink_to_fit();
-    }
-    
-    
-    
-    
-    
-    
-    
-    //int x;
-    //std::cout<< th[node_threashold].sub<<" "<<th[node_threashold].score<< " "<< th[21].sub<<" "<<th[21].score<<"\n";
-    //std::vector<int> min_val (100);
-    //std::vector<kmer_t> corr_k (100);
-    
-    
-    /*for(; ptr[p]!='>' && p<length; p++) { }
-
- 
-    kmer_t kmer = 0; 
-    kmer_t min_kmer = 0;
-    kmer_t rev_min_kmer = 0;
-    kmer_t rev_kmer = 0; 
-    kmer_t min_min_freq = 0; 
-    int min_pos = 0; 
-    int m_pos = 0;
-    int min_val;
-    int val;
-    int p1 = 73;
-    int p2 = 31;
-    kmer_t corr_k;
-    while(p<length) {
-        
-        assert(ptr[p]=='>'); 
-        
-    
-        for(; p<length && ptr[p]!='\n'; p++) {}//std::cout<<ptr[p];}//Read the name 
-        
-        p++; 
-        total_queries++;
-
-        if(p+100 > length) break; 
+        if(p+w_size > length) break; 
 
         kmer=0;
         rev_kmer=0;
         int i;
         std::string s;
         std::string str;
-        int contig_len = 0;
-        int tt = 0; //tracking N
+        int read_len = 0;
+        int special_char= 0; //tracking N
         
-        for(i=0; !isspace(ptr[p]) && i<100-1; i++) {
+        /* Get kmers from forward strand */
+        for(i=0; !isspace(ptr[p]) && i<w_size-1; i++) {
             //N Cheking
-            if(tt > 0)
+            if(special_char> 0)
             {
-                tt--;
+               special_char--;
             }
-            if (ptr[p] == 'N' || ptr[p] == 'Y' || ptr[p] == 'S' || ptr[p] == 'R' || ptr[p] == 'I' || ptr[p] == 'E')
+            if (ptr[p] == 'N' || ptr[p] == 'Y' || ptr[p] == 'S' || ptr[p] == 'R' || ptr[p] == 'I' || ptr[p] == 'E' || ptr[p] == 'K')
             {
-                tt = 100;
+                special_char= w_size;
             }
-            
-            s.push_back(convert_to_char(ptr[p], contig_len, total_queries));
+            s.push_back(convert_to_char(ptr[p], read_len, total_queries));
             str.push_back(ptr[p]);
             p++;
-            contig_len++;
-        
+            read_len++;
         }
-        
+
+       
         while(p<length && !isspace(ptr[p])) {
-      
-            if(tt > 0)
+            /* check for special characters */
+            if(special_char> 0)
             {
-                tt--;
+               special_char--;
             }
-            if (ptr[p] == 'N' || ptr[p] == 'Y' || ptr[p] == 'S' || ptr[p] == 'R' || ptr[p] == 'I' || ptr[p] == 'E')
+            if (ptr[p] == 'N' || ptr[p] == 'Y' || ptr[p] == 'S' || ptr[p] == 'R' || ptr[p] == 'I' || ptr[p] == 'E' || ptr[p] == 'K')
             {
-                tt = 100;
+                special_char= w_size;
             }
             
-            s.push_back(convert_to_char(ptr[p], contig_len, total_queries));
+            
+            
+            s.push_back(convert_to_char(ptr[p], read_len, total_queries));
             str.push_back(ptr[p]);
             
             p++;
-            contig_len++;
-            recalculate_min_kmer(str.substr(contig_len - 100, 100), &min_kmer, &min_pos, &m_pos);
-            rev_set.push_back(min_kmer);
-            if (min_pos > 0)
+            read_len++;
+            recalculate_min_kmer(str.substr(read_len - w_size, w_size), &min_kmer, &min_tracker, &min_pos);
+            forward_set.push_back(min_kmer);
+            if (min_tracker > 0)
             {
-                rev_set_tracker.push_back(1);
+                forward_set_tracker.push_back(1);
             }
             else
             {
-                rev_set_tracker.push_back(0);
+                forward_set_tracker.push_back(0);
             }
         } 
-        //std::cout << rank << " "<<s <<"\n";
+        
+        
+        /* get kmers from reverse strand */
         reverse(s.begin(), s.end());
         //std::cout << rank << " "<<s <<"\n";
-        int tracker = 0;
+        int len_tracker = 0;
         int itr = 0;
-        for(i=0; i<100-1; i++) {
-      
-            tracker++;
-            
+        for(i=0; i<w_size-1; i++) {
+      //kmer = (kmer_t)((kmer<<2) | (kmer_t)(convert_to_int(ptr[p]))) & (kmer_t)KMER_MASK;
+            //rev_kmer = kmer_shift(rev_kmer, char_to_el(s[tracker]));
+            len_tracker++;
             
         }
-        while(tracker<contig_len) {
-            
-            tracker++;
-            recalculate_min_kmer(s.substr(tracker - 100, 100), &rev_min_kmer, &min_pos, &m_pos);
-            if(rev_min_kmer <= rev_set[contig_len-100-itr])
+        while(len_tracker<read_len) {
+            //rev_kmer = kmer_shift(rev_kmer, char_to_el(s[tracker]));
+            len_tracker++;
+            recalculate_min_kmer(s.substr(len_tracker - w_size, w_size), &rev_min_kmer, &min_tracker, &min_pos);
+            if(rev_min_kmer <= forward_set[read_len-w_size-itr])
             {
-                if(rev_set_tracker[contig_len-100-itr] == 1)
+                if(forward_set_tracker[read_len-w_size-itr] == 1)
                 {
                     kmer_set.push_back(rev_min_kmer);
                 }
             }
             else
             {
-                if(rev_set_tracker[contig_len-100-itr] == 1)
+                if(forward_set_tracker[read_len-w_size-itr] == 1)
                 {
-                    kmer_set.push_back(rev_set[contig_len-100-itr]);
+                    kmer_set.push_back(forward_set[read_len-w_size-itr]);
                 }
             }
             
             itr++;
       
         }
-        rev_set.clear();
-        rev_set.shrink_to_fit(); 
-        rev_set_tracker.clear();
-        rev_set_tracker.shrink_to_fit(); 
-         
-        if(kmer_set.size() > 0)
-        {
-        kmer_t prev=kmer_set[0];
+        forward_set.clear();
+        forward_set.shrink_to_fit(); 
+        forward_set_tracker.clear();
+        forward_set_tracker.shrink_to_fit(); 
         
-        int i ;
-        for(i = 1; i < (int)(kmer_set.size()); i++)
+        if(read_len >= read_length && kmer_set.size() > 0)
         {
-			     if (kmer_set[i] != prev) {
-			         set_of_distinct_kmers.push_back(prev);
-               prev=kmer_set[i];
+        
+        
+            kmer_t prev=kmer_set[0];
+        //set_of_distinct_pos.push_back(kmer_set_pos[0]);
+            int i ;
+            for(i = 1; i < (int)(kmer_set.size()); i++)
+            {
+			         if (kmer_set[i] != prev) {
+			             set_of_distinct_kmers.push_back(prev);
+                   prev=kmer_set[i];
+               //set_of_distinct_pos.push_back(kmer_set_pos[i-1]);
                
-               
-			     }
+			         }
 		     
-        }
-                  
-        set_of_distinct_kmers.push_back(prev);
-        if(start + total_queries - 1 == 3){
-          std::cout<<"3\n";
-          for(int i = 0; i<set_of_distinct_kmers.size(); i++)
-          {
-                
-                    std::cout<< set_of_distinct_kmers[i]<< " ";
-          }
-          std::cout<<"\n";
-        }
-        
-        std::unordered_map<int, int> umap;
-        int sub = 0;
-        int top_hit = 0;
-        for (int k = 0; k < node_threashold; k++)
-        {
-            
-            min_val = Px[k];
-            
-            for(int i = 0; i<set_of_distinct_kmers.size(); i++)
-            {
-                
-                
-                val = int((Ax[k] * set_of_distinct_kmers[i] + Bx[k])%Px[k]);
-                
-                if (val < min_val)
-                {
-                    //A1[j][k] = modified_sets[j][i];
-                    corr_k = set_of_distinct_kmers[i];
-                    min_val = val;
-                    
-                }
             }
-            
-            
-            auto it = Tl[k].find(corr_k);
                   
-            if(it != Tl[k].end())
+            set_of_distinct_kmers.push_back(prev);
+        
+        
+            std::unordered_map<int, int> umap; //final output map
+            int sub = 0;
+            int top_hit = 0;
+            for (int k = 0; k < no_trials; k++)
             {
-               
-                for (int elements = 0; elements < it->second.size(); elements++)
+            //min_val = Px[k];
+                min_val = Px[k];
+            
+                for(int i = 0; i<set_of_distinct_kmers.size(); i++)
                 {
-                    
-                    
-                    if (th[it->second[elements]].sub == total_queries)
+                //val = int(((((Ax[k]%Px[k])*(kmer_set[i]%Px[k]))%Px[k] + (Bx[k]%Px[k]))%Px[k]));
+                    val = int((Ax[k] * set_of_distinct_kmers[i] + Bx[k])%Px[k]);
+                  
+                    if (val < min_val)
                     {
-                        th[it->second[elements]].score += 1;
-                        if (top_hit < th[it->second[elements]].score)
+                    
+                        corr_k = set_of_distinct_kmers[i]; // corresponding kmer to min value
+                        min_val = val;
+                    
+                    }
+                }
+                auto it = Index_table[k].find(corr_k);
+            //printf("%d %d\n", rank, k);   
+            /*if (rank == 0 &&  total_queries == 1)
+            
+            {
+                std::cout <<total_queries << " " << top_hit << " "<< sub << " "<<"\n";
+            } */       
+                if(it != Index_table[k].end())
+                {
+                
+                    for (int elements = 0; elements < it->second.size(); elements++)
+                    {
+                    //std::cout<<rank<< " "<<elements<<" "<<it->second[elements]<<"\n";
+                        auto iter = umap.find(it->second[elements]);
+                        if (iter != umap.end())
                         {
-                            top_hit = th[it->second[elements]].score;
+                            iter->second = iter->second + 1;
+                        /*if (top_hit < iter->second)
+                        {
+                            top_hit = iter->second;
                             sub = it->second[elements];
+                        }*/
                         }
+                        else
+                        {
+                            umap.insert({{it->second[elements], 1}});
+                          
+                        }
+                    
+                    
+                    
+                    
+                    }
+                }
+            //hash_kmers.push_back(corr_k);
+            }
+        /*
+        if (rank == 0 &&  total_queries == 1)
+            
+            {
+                std::cout <<total_queries << " " << top_hit << " "<< sub << " "<<"\n";
+            }*/
+            
+            for(auto & x:umap)
+            {
+                
+                
+                if (x.second >=10)
+                {
+                    if((start + total_queries - 1) >= total_q)
+                    {
+                        //std::cout<<total_q<< " "<<start + total_queries - 1 - total_q << " "<< start + total_queries - 1;
+                        fprintf(f,"%d %d %d\n",  start + total_queries - total_q , x.first , x.second);
                     }
                     else
                     {
-                        th[it->second[elements]].sub = total_queries;
-                        th[it->second[elements]].score = 1;
-                        if (top_hit < th[it->second[elements]].score)
-                        {
-                            top_hit = th[it->second[elements]].score;
-                            sub = it->second[elements];
-                        }
-                        
+                        fprintf(f,"%d %d %d\n",  start + total_queries , x.first , x.second);
                     }
                 }
-                
-                
             }
-            
+        
+        
+        
+            umap.clear();
         }
-        
-        if (top_hit > 1)
-        {
-            
-                fprintf(f,"%d %d %d\n",  start + total_queries - 1, sub - 1, top_hit);
-            
-        }
-        
-        
-        
-        
-        }
-        
-               
+          
+        set_of_distinct_kmers.clear();
+        set_of_distinct_kmers.shrink_to_fit();     
         kmer_set.clear();
         kmer_set.shrink_to_fit();
-        set_of_distinct_kmers.clear();
-        set_of_distinct_kmers.shrink_to_fit();
-  
+  /*  if (max_set_length < set_of_distinct_kmers.size())
+    {
+        max_set_length = set_of_distinct_kmers.size();
+    } */
+        //initial_sets.push_back(hash_kmers);
+        //hash_kmers.clear();
+        //hash_kmers.shrink_to_fit();
         p++; 
         p++;
-        
-    }*/
-    
-    /*for (int i = 0; i <= total_subjects; ++i) {
-        omp_destroy_lock(&locks[i]);
+        //std::cout<<"After "<<rank<<" "<<ptr[p]<<"\n";
     }
-    free(locks);*/
-    string_set.clear();
-    string_set.shrink_to_fit();
-    for (int t = 0; t < 32; ++t) {
-        free(th_per_thread[t]);
-    }
-    free(th_per_thread);
-    //free(th);
+    free(th);
   //printf("%d %d\n", rank, max_set_length);
   //int avg = 0;
   //*M_for_individual_process = max_set_length;
@@ -1182,21 +876,15 @@ void Sliding_window_queires (char *ptr, size_t length, int *num_queries,
   //num_kmers = max_set_length;
 }
 
-
-
-
 void Sliding_window (char *ptr, size_t length, int *M_for_individual_process, int *num_subjects,
                      std::vector<MinHashPairs> &initial_sets, int s_index)
 {
 
     size_t p=0;
-    size_t pl = 0;
     int max_set_length = 0;
-    std::vector<std::string> string_set;
-    //int max_set_length = 0;
-    std::vector<kmer_t> rev_set;
-    std::vector<int> pos_set;
-    std::vector<kmer_t> kmer_set;
+    std::vector<kmer_t> forward_set; // set of kmers from reverse complement
+    std::vector<int> pos_set; // position of kmers
+    std::vector<kmer_t> kmer_set; 
     std::vector<kmer_t> kmer_set_pos;
     std::vector<kmer_t> set_of_distinct_kmers;
     std::vector<int> set_of_distinct_pos;
@@ -1204,10 +892,10 @@ void Sliding_window (char *ptr, size_t length, int *M_for_individual_process, in
     std::vector<int> set_of_distinct_pos_rev;
     std::vector<kmer_t> set_of_dist_kmers;
     std::vector<MinHashPairs> set_of_dist_minhash_pairs;
-    std::vector<int> rev_set_tracker;
+    std::vector<int> forward_set_tracker;
     int total_subjects = 0;
   
-    for(; ptr[pl]!='>' && pl<length; pl++) { }
+    for(; ptr[p]!='>' && p<length; p++) { }
 
  
     kmer_t kmer = 0; 
@@ -1216,195 +904,136 @@ void Sliding_window (char *ptr, size_t length, int *M_for_individual_process, in
     kmer_t rev_kmer = 0; 
     kmer_t min_lmer_freq = 0; 
     int min_pos = 0;
-    int ex_pos = 0;
-    for(size_t p = pl; p<length; p++) {
-        //std::cout<<ptr[p];
+    int min_tracker = 0;
+    while(p<length) {
         assert(ptr[p]=='>'); 
-        //std::cout<<ptr[p];
+
     
-        for(; p<length && ptr[p]!='\n'; p++) {}//std::cout<<ptr[p];}//Read the name 
-        //std::cout<<"\n";
+        for(; p<length && ptr[p]!='\n'; p++) {
+        /*if(rank == 0)
+            {
+                std::cout<<ptr[p];
+            }*/
+        }//Read the name 
+            //std::cout<<"\n";
         p++; 
-        
-        
+        total_subjects++;
+
+        if(p+w_size > length) break; 
+
+        kmer=0;
+        rev_kmer=0;
+        int i;
+        std::string s;
         std::string str;
-        for(int i=0; !isspace(ptr[p]) && i<100-1; i++) {
-            //N Cheking
-            
+        int read_len = 0;
+
+        /* generate minimizers from forward strand */
+        for(i=0; !isspace(ptr[p]) && i<w_size-1; i++) {
+      
+            s.push_back(convert_to_char(ptr[p], read_len, total_subjects));
             str.push_back(ptr[p]);
             p++;
+            read_len++;
+            
             
         }
-        //int chkr = 0;
-        /*
-        if (rank == 9)
-        {
-        printf("%d {---} %d\n", rank, contig_len);
-        }*/
-        while(p<length && !isspace(ptr[p])) {
-      
+        while(p<length && !isspace(ptr[p])) {  
+            s.push_back(convert_to_char(ptr[p], read_len, total_subjects));
             str.push_back(ptr[p]);
             //s.push_back(ptr[p]);
             p++;
+            read_len++;
+            //rev_set.push_back(min_kmer);
+            recalculate_min_kmer(str.substr(read_len - w_size, w_size), &min_kmer, &min_tracker, &min_pos);
+            forward_set.push_back(min_kmer);
+            pos_set.push_back(min_pos);
+            if (min_tracker > 0)
+            {
+                forward_set_tracker.push_back(1);
+            }
+            else
+            {
+                forward_set_tracker.push_back(0);
+            }
             
         } 
         
-        if(str.size() >100)
-        {  
-            string_set.push_back(str);
-            total_subjects++;
-
-        }
-        p++; 
-        
-    }
-    free(ptr);
-    int contig_len = 0;
-    int ii = 0;
-    std::cout<<rank << " "<<total_subjects<<" "<<string_set.size()<<" \n";
-    #pragma omp parallel for private( string_set, ii, contig_len, total_subjects, rev_set, pos_set, min_kmer, min_pos, ex_pos, rev_set_tracker, kmer_set, kmer_set_pos, set_of_distinct_kmers, set_of_distinct_pos, node_threashold) shared(initial_sets)
-    for (int st = 0; st < total_subjects; st++) {
-    
-            std::string current_string = string_set[st];
-            kmer_t kmer = 0;
-            kmer_t rev_kmer = 0;
-            kmer_t min_kmer = 0;
-            kmer_t rev_min_kmer = 0;
-            int min_pos = 0;
-            int m_pos = 0;
-            int min_val;
-            int val;
-            contig_len = 0;
-            //int tt = 0;
-            std::string s, str;
-
-            for (size_t ii = 0; ii < current_string.size() && ii < 100 - 1; ii++) {
-                //if (tt > 0) tt--;
-                //if (current_string[ii] == 'N' || current_string[ii] == 'Y' || current_string[ii] == 'S' || current_string[ii] == 'R' || current_string[ii] == 'I' || current_string[ii] == 'E') tt = 100;
-                //#pragma omp critical
-                //{
-                s.push_back(convert_to_char(current_string[ii], contig_len, total_subjects));
-                str.push_back(current_string[ii]);
-                contig_len++;
-                //}
-            }
-
-            while (ii < current_string.size()) {
-                //if (tt > 0) tt--;
-                //if (current_string[ii] == 'N' || current_string[ii] == 'Y' || current_string[ii] == 'S' || current_string[ii] == 'R' || current_string[ii] == 'I' || current_string[ii] == 'E') tt = 100;
-                
-                //#pragma omp critical
-                //{
-                s.push_back(convert_to_char(current_string[ii], contig_len, total_subjects));
-                str.push_back(current_string[ii]);
-                contig_len++;
-                
-                //recalculate_min_kmer(str.substr(contig_len - 100, 100), &min_kmer, &min_pos, &m_pos);
-                recalculate_min_kmer(str.substr(contig_len - 100, 100), &min_kmer, &min_pos, &ex_pos);
-                rev_set.push_back(min_kmer);
-                pos_set.push_back(ex_pos);
-                if (min_pos > 0)
-                {
-                    rev_set_tracker.push_back(1);
-                }
-                else
-                {
-                    rev_set_tracker.push_back(0);
-                }
-                //rev_set.push_back(min_kmer);
-                //rev_set_tracker.push_back(min_pos > 0 ? 1 : 0);
-                //}
-                ii++;
-            }
-    
-         reverse(s.begin(), s.end());
-        //std::cout << rank << " "<<s <<"\n";
-        int tracker = 0;
+        reverse(s.begin(), s.end());
+        int length_tracker = 0;
         int itr = 0;
-        int i;
-        for(i=0; i<100-1; i++) {
-      //kmer = (kmer_t)((kmer<<2) | (kmer_t)(convert_to_int(ptr[p]))) & (kmer_t)KMER_MASK;
-            //rev_kmer = kmer_shift(rev_kmer, char_to_el(s[tracker]));
-            tracker++;
-            //s.push_back(ptr[p]);
-            //std::cout<<rank<<" "<<ptr[p]<<"\n";
-            //s.push_back(convert_to_char(ptr[p]));
-            //p++;
-            //contig_len++;
-            //s.push_back(convert_to_char(ptr[p]));
-            
+         
+        /* generate minimizers from reverse strand and get the final set of minimizers*/
+        for(i=0; i<w_size-1; i++) {
+            length_tracker++;
         }
 
-        while(tracker<contig_len) {
-            
-            tracker++;
-            
-            recalculate_min_kmer(s.substr(tracker - 100, 100), &rev_min_kmer, &min_pos, &ex_pos);
-            
-            if(rev_min_kmer <= rev_set[contig_len-100-itr])
+        while(length_tracker<read_len) {
+            //rev_kmer = kmer_shift(rev_kmer, char_to_el(s[tracker]));
+            length_tracker++;
+            //std::cout << tracker - 10 << "--   --"<< tracker<<"\n";
+            recalculate_min_kmer(s.substr(length_tracker - w_size, w_size), &rev_min_kmer, &min_tracker, &min_pos);
+            if(rev_min_kmer <= forward_set[read_len-w_size-itr])
             {
-                
-                if(rev_set_tracker[contig_len-100-itr] == 1)
+                //if(rev_set_tracker[contig_len-10-itr] == 1)
+                //{
+                if(forward_set_tracker[read_len-w_size-itr] == 1)
                 {
                     if (rev_min_kmer != 3074457345618258602)
                     {
                         kmer_set.push_back(rev_min_kmer);
-                        kmer_set_pos.push_back(contig_len-100-itr + (100 - 1) - (ex_pos + KMER_LENGTH-1));
+                        kmer_set_pos.push_back(read_len-w_size-itr + (w_size - 1) - (min_pos + KMER_LENGTH-1));
                     }
                 }
-               
             }
             else
             {
-                
-                if(rev_set_tracker[contig_len-100-itr] == 1)
+                //if(rev_set_tracker[contig_len-10-itr] == 1)
+                //{
+                if(forward_set_tracker[read_len-w_size-itr] == 1)
                 {
-                    kmer_set.push_back(rev_set[contig_len-100-itr]);
-                    kmer_set_pos.push_back(pos_set[contig_len-100-itr] + contig_len-100-itr);
+                    kmer_set.push_back(forward_set[read_len-w_size-itr]);
+                    kmer_set_pos.push_back(pos_set[read_len-w_size-itr] + read_len-w_size-itr);
                 }
             }
             
             itr++;
-      
         }
-        rev_set.clear();
-        rev_set.shrink_to_fit(); 
-        rev_set_tracker.clear();
-        rev_set_tracker.shrink_to_fit(); 
+        forward_set.clear();
+        forward_set.shrink_to_fit(); 
+        forward_set_tracker.clear();
+        forward_set_tracker.shrink_to_fit(); 
         pos_set.clear();
         pos_set.shrink_to_fit();
         
-        
-       if(contig_len >= 1000 && kmer_set.size() > 0)
-        {
-        
-        kmer_t prev=kmer_set[0];
-        
-        int i ;
-        for(i = 1; i < (int)(kmer_set.size()); i++)
-        {
-			     if (kmer_set[i] != prev) {
-			         set_of_distinct_kmers.push_back(prev);
-               prev=kmer_set[i];
-               set_of_distinct_pos.push_back(kmer_set_pos[i-1]);
-               
-			     }
-		     
-        }
+        /* get distinct set of minimizers */
+       if(read_len >= read_length && kmer_set.size() > 0)
+       {
+        //sort(kmer_set.begin(), kmer_set.end());
+            kmer_t prev=kmer_set[0];
+        //set_of_distinct_pos.push_back(kmer_set_pos[0]);
+            int i ;
+            for(i = 1; i < (int)(kmer_set.size()); i++)
+            {
+			         if (kmer_set[i] != prev) {
+			             set_of_distinct_kmers.push_back(prev);
+                   prev=kmer_set[i];
+                   set_of_distinct_pos.push_back(kmer_set_pos[i-1]);
+               }
+            }
                   
-        set_of_distinct_kmers.push_back(prev);
-        set_of_distinct_pos.push_back(kmer_set_pos[i-1]);
+            set_of_distinct_kmers.push_back(prev);
+            set_of_distinct_pos.push_back(kmer_set_pos[i-1]);
+        //printf("Wsize Subject =%d\n", set_of_distinct_kmers.size());
+        }
         
-        }
-           
-            
-        for (int yu = set_of_distinct_pos.size() - 1; yu >= 0; yu --)
+        for (int reverse = set_of_distinct_pos.size() - 1; reverse >= 0; reverse --)
         {
-            
-            set_of_distinct_pos_rev.push_back(set_of_distinct_pos[yu]);
-            set_of_distinct_kmers_rev.push_back(set_of_distinct_kmers[yu]);
+            //printf("%d %d", set_of_distinct_pos[yu], yu);
+            set_of_distinct_pos_rev.push_back(set_of_distinct_pos[reverse]);
+            set_of_distinct_kmers_rev.push_back(set_of_distinct_kmers[reverse]);
         }
-                
+               
         kmer_set.clear();
         kmer_set.shrink_to_fit();
         kmer_set_pos.clear();
@@ -1413,124 +1042,96 @@ void Sliding_window (char *ptr, size_t length, int *M_for_individual_process, in
         {
             max_set_length = set_of_distinct_kmers.size();
         }
+        
+        
+        /* slide window of length l and genrate minhashes */
         int j = 0;
         int k = 0;
-        std::vector<kmer_t> minL (node_threashold,3074457345618258602);
-        std::vector<kmer_t> corr_kmer (node_threashold,3074457345618258602);
-     
-        std::vector<std::unordered_map<kmer_t, int> > Tl(node_threashold);
+        
+        std::vector<kmer_t> min_val (no_trials,3074457345618258602);
+        std::vector<kmer_t> corr_kmer (no_trials,3074457345618258602); // corresponding value of minimum kmer
+     /*   if (rank == 0)
+        {
+                    printf(" k %d j %d ", k, j);
+        }*/
+        std::vector<std::unordered_map<kmer_t, int> > MinHashes(no_trials);
+        
+        int start_ind = 0;
         
         while (j < set_of_distinct_kmers_rev.size() && k < set_of_distinct_kmers_rev.size())
         
         {
-            if ((set_of_distinct_pos_rev[k] - set_of_distinct_pos_rev[j]) <= 1000)
+            if ((set_of_distinct_pos_rev[k] - set_of_distinct_pos_rev[j]) <= read_length)
             {
-                
-                
-                for(int g = 0; g < node_threashold; g++)
+                for(int trial = 0; trial < no_trials; trial++)
                 {
            
-                    kmer_t val = (Ax[g]*set_of_distinct_kmers_rev[k] + Bx[g]) % Px[g];
-                    
-                    if (val <minL[g])
+                    kmer_t val = (Ax[trial]*set_of_distinct_kmers_rev[k] + Bx[trial]) % Px[trial];
+            
+                    if (val <min_val[trial])
                     {
-                
-                            
-                                minL[g] = val;
-                                corr_kmer[g] = set_of_distinct_kmers_rev[k];
-                            
+                //minL[k] = ((Ax[k] * kmer_sets[j][i] + Bx[k]) % Px[k]);
+                        min_val[trial] = val;
+                        corr_kmer[trial] = set_of_distinct_kmers_rev[k];
                     }
-                }
-                
+                }  
                 k += 1;
      
             }
             else
             {
-                for(int g = 0; g < node_threashold; g++)
+                for(int trial = 0; trial < no_trials; trial++)
                 {
-                    
-                    auto it = Tl[g].find(corr_kmer[g]);
+                    //initial_sets.push_back(MinHashPairs{g, corr_kmer[g], total_subjects+s_index});
+                    auto it = MinHashes[trial].find(corr_kmer[trial]);
                         
-                    if(it == Tl[g].end())
+                    if(it == MinHashes[trial].end())
                     {
-                    
-                        Tl[g].insert({corr_kmer[g], 1});
+                        if (start_ind == 0)
+                        {
+                            MinHashes[trial].insert({corr_kmer[trial], 1});
+                        }
+                        else
+                        {
+                            MinHashes[trial].insert({corr_kmer[trial], 0});
+                        }
                     }
-                    minL[g] = 3074457345618258602;
+                    min_val[trial] = 3074457345618258602;
                 }
                 j += 1;
                 k = j;
-                
+                start_ind += 1;
+                //w_len += 1
             }
         }
-        for(int g = 0; g < node_threashold; g++)
+        for(int trial = 0; trial < no_trials; trial++)
         {
-            auto it = Tl[g].find(corr_kmer[g]);
+            auto it = MinHashes[trial].find(corr_kmer[trial]);
                         
-            if(it == Tl[g].end())
+            if(it == MinHashes[trial].end())
             {
                     
-                Tl[g].insert({corr_kmer[g], 1});
+                MinHashes[trial].insert({corr_kmer[trial], 1});
             }
-            
-        }
-         
-        /*for(int g = 0; g < node_threashold; g++)
-        {
-        
-            for(auto & x:Tl[g])
+            else
             {
-                
-                initial_sets.push_back(MinHashPairs{g, x.first, total_subjects+s_index});
-                
+                it ->second = 1;   
             }
-            Tl[g].clear();
-        }*/
-        std::vector<omp_lock_t> locks(node_threashold);
-
-// Initialize locks
-    for (int i = 0; i < node_threashold; i++) {
-          omp_init_lock(&locks[i]);
-    }
-
-    #pragma omp parallel
-    {
-    // Thread-local storage to accumulate results
-        std::vector<MinHashPairs> local_initial_sets;
-        local_initial_sets.reserve(100); // Reserve memory to avoid dynamic allocations
-
-        #pragma omp for schedule(dynamic)
-        for (int g = 0; g < node_threashold; g++) {
-        // Acquire lock for this trail
-            omp_set_lock(&locks[g]);
-
-            for (const auto &x : Tl[g]) {
-                local_initial_sets.push_back(MinHashPairs{g, x.first, total_subjects + s_index});
-            }
-            Tl[g].clear();  // Clear the map for this index
-
-        // Release lock for this trail
-            omp_unset_lock(&locks[g]);
+            //initial_sets.push_back(MinHashPairs{g, corr_kmer[g], total_subjects+s_index});
+            //minL[g] = 1074457345618108602;
         }
-
-    // Use a critical section to combine the results from all threads
-        #pragma omp critical
+        for(int trial = 0; trial < no_trials; trial++)
         {
-            initial_sets.insert(initial_sets.end(), local_initial_sets.begin(), local_initial_sets.end());
+        
+            for(auto & x:MinHashes[trial])
+            {
+                initial_sets.push_back(MinHashPairs{trial, x.first, x.second, total_subjects+s_index});
+                //std::cout<<g<< " "<<x.first<<" "<<x.second<<" "<< total_subjects+s_index<<"\n";
+            }
+            MinHashes[trial].clear();
         }
-    }
-
-// Destroy locks
-    for (int i = 0; i < node_threashold; i++) {
-        omp_destroy_lock(&locks[i]);
-    }
-        
-        
-        
-        
-        Tl.clear();
-        Tl.shrink_to_fit();
+        MinHashes.clear();
+        MinHashes.shrink_to_fit();
         
         
         set_of_distinct_kmers.clear();
@@ -1544,20 +1145,22 @@ void Sliding_window (char *ptr, size_t length, int *M_for_individual_process, in
         set_of_distinct_pos_rev.clear();
         set_of_distinct_pos_rev.shrink_to_fit();
         set_of_dist_kmers.clear();
-        set_of_dist_kmers.shrink_to_fit();   
-    
-        
+        set_of_dist_kmers.shrink_to_fit();
+        p++; 
+        p++;
+        //printf("After %c", ptr[p]);
+        //std::cout<<"After "<<rank<<" "<<ptr[p]<<"\n";
     }
-    string_set.clear();
-    string_set.shrink_to_fit();
-  
+  //printf("Max %d %d\n", rank, max_set_length);
+  //int avg = 0;
+  //printf("\n MinHash Pair Size %d\n", set_of_dist_minhash_pairs.size());
   *M_for_individual_process = max_set_length;
   *num_subjects= total_subjects;
-  
+  //printf("%d %d %d\n", rank, num_kmers, avg);
+  //printf("total subjects %d\n", total_subjects);
+  //num_kmers = max_set_length;
 }
-
-
-void print_kmer_count_timers()
+void print_timers()
 {
 
     MPI_Reduce(&sl_time, &global_sl_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
@@ -1605,7 +1208,55 @@ void print_kmer_count_timers()
 
 }
 
+/*
+void print_kmer_count_timers()
+{
 
+    MPI_Reduce(&sl_time, &global_sl_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for sl across all procs (secs): %f \n", 
+                            (double)global_sl_time/(double)size);
+
+    MPI_Reduce(&mod, &global_mod_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for mod across all procs (secs): %f \n", 
+                            (double)global_mod_time/(double)size);
+
+    MPI_Reduce(&rd, &global_rd_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for read table across all procs (secs): %f \n", 
+                            (double)global_rd_time/(double)size);
+    
+    MPI_Reduce(&hash, &global_hash_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for hash across all procs (secs): %f \n", 
+                            (double)global_hash_time/(double)size);
+    MPI_Reduce(&fl_time, &global_fl_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for flatten across all procs (secs): %f \n", 
+                            (double)global_fl_time/(double)size);
+
+    MPI_Reduce(&comm_time, &global_comm_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for comm across all procs (secs): %f \n", 
+                            (double)global_comm_time/(double)size);
+                            
+    MPI_Reduce(&ag_time, &global_ag_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for ag across all procs (secs): %f \n", 
+                            (double)global_ag_time/(double)size);
+
+    MPI_Reduce(&qsl, &global_qsl_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for qsl across all procs (secs): %f \n", 
+                            (double)global_qsl_time/(double)size);
+
+    MPI_Reduce(&qhash, &global_qhash_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for qhash across all procs (secs): %f \n", 
+                            (double)global_qhash_time/(double)size);
+    MPI_Reduce(&ss, &global_ss_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for ss across all procs (secs): %f \n", 
+                            (double)global_ss_time/(double)size);
+    MPI_Reduce(&out, &global_out_time, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) printf ("Average time for out across all procs (secs): %f \n", 
+                            (double)global_out_time/(double)size);
+
+
+
+}
+*/
 
 void generate_set_of_subjects (char *read_data, size_t length, int s_index, char *r_data, size_t r_length, int start_index, int total_q, int *M_final, int *num_subjects)
 {
@@ -1615,26 +1266,26 @@ void generate_set_of_subjects (char *read_data, size_t length, int s_index, char
     read_array();
     //std::cout<<rank<<"\n";
     //std::vector< std::vector<kmer_t> > kmer_set_of_subjects;
-    std::vector< MinHashPairs > kmer_set_of_subject;
+    std::vector< MinHashPairs > minhash_from_set_of_subjects;
     
     
-    int local_sum = 0;
+    
 
     int M_for_individual_processes = 0;
     int M;
     int n_subjects;
     int total_subjects;
     
-    Sliding_window (read_data, length, &M_for_individual_processes, &n_subjects, kmer_set_of_subject, s_index);
+    Sliding_window (read_data, length, &M_for_individual_processes, &n_subjects, minhash_from_set_of_subjects, s_index);
     free(read_data);
-    int Array_size = kmer_set_of_subject.size();
+    int Array_size = minhash_from_set_of_subjects.size();
     double time_l2 = MPI_Wtime ();
     sl_time = time_l2 - time_l1;
     
     
     //if (rank == 0) printf ("M and total subjects determined form all procceses %d %d\n", M, total_subjects);
     //*M_final = M;
-    *num_subjects = total_subjects;
+    //*num_subjects = total_subjects;
     
     
     std::vector<int> counts_number (size,0);
@@ -1664,13 +1315,7 @@ void generate_set_of_subjects (char *read_data, size_t length, int s_index, char
             total_counter += counts_number[p];
         //}
     }
-    int i;
-    #pragma omp parallel for reduction(+:local_sum)
-    for (i = 0; i < size; i += 1) {
-        local_sum += counts_number[i];
-    }
-    //std::cout <<rank<< " " << local_sum<<"\n"; 
-     //std::cout <<rank<< " " << total_counter<<"\n"; 
+    //std::cout << "\n"; 
     
     std::vector< MinHashPairs > mhash_set(total_counter);
     for(int y = 1; y< size; y++)
@@ -1681,10 +1326,11 @@ void generate_set_of_subjects (char *read_data, size_t length, int s_index, char
     double time_l24 = MPI_Wtime ();
     qsl += time_l24 - time_l14; 
     
+    /* communication */
     double time_l33 = MPI_Wtime ();
     
     MPI_Barrier(MPI_COMM_WORLD);
-    int result1 = MPI_Allgatherv(kmer_set_of_subject.data(), Array_size, rowtype, 
+    int result1 = MPI_Allgatherv(minhash_from_set_of_subjects.data(), Array_size, rowtype, 
             mhash_set.data(), counts_number.data(), disp_array.data(), rowtype, MPI_COMM_WORLD);
     //double time_l4 = MPI_Wtime ();
     //comm_time = time_l4 - time_l3;
@@ -1698,142 +1344,52 @@ void generate_set_of_subjects (char *read_data, size_t length, int s_index, char
     comm_time += time_l44 - time_l33;
     
     double tq1 = MPI_Wtime ();
-    kmer_set_of_subject.clear();
-    kmer_set_of_subject.shrink_to_fit();
-    std::vector<std::unordered_map<kmer_t, std::vector<int>> > Tl(node_threashold);
-    //std::vector<std::unordered_map<kmer_t, omp_lock_t>> lock_map(node_threashold);
-    std::vector<omp_lock_t> locks(node_threashold);
-
-// Initialize locks
-    for (int i = 0; i < node_threashold; i++) {
-        omp_init_lock(&locks[i]);
-    }
-
-    #pragma omp parallel for
-    for (int ita = 0; ita < mhash_set.size(); ita++) {
-        int trail_index = mhash_set[ita].trail;
-
-    // Acquire lock for this trail
-        omp_set_lock(&locks[trail_index]);
-
-        auto it = Tl[trail_index].find(mhash_set[ita].seq);
-        if (it != Tl[trail_index].end()) {
-            it->second.push_back(mhash_set[ita].subject_id);
-        } else {
-            std::vector<int> create_new;
-            create_new.push_back(mhash_set[ita].subject_id);
-            kmer_t n = mhash_set[ita].seq;
-            Tl[trail_index].insert({n, create_new});
-        }
-
-    // Release lock for this trail
-        omp_unset_lock(&locks[trail_index]);
-    }
-
-// Destroy locks
-    for (int i = 0; i < node_threashold; i++) {
-        omp_destroy_lock(&locks[i]);
-    }
-
-/*#pragma omp parallel for
-for (int ita = 0; ita < mhash_set.size(); ita++) {
-    int trail_index = mhash_set[ita].trail;
-    kmer_t seq = mhash_set[ita].seq;
-
-    // Initialize lock for the kmer_t if it doesn't exist
-    #pragma omp critical
+    minhash_from_set_of_subjects.clear();
+    minhash_from_set_of_subjects.shrink_to_fit();
+    std::vector<std::unordered_map<kmer_t, std::vector<int> >> Subject_Hash_Table(no_trials);
+    
+    for (int ita = 0; ita < mhash_set.size(); ita++)
     {
-        if (lock_map[trail_index].find(seq) == lock_map[trail_index].end()) {
-            omp_lock_t new_lock;
-            omp_init_lock(&new_lock);
-            lock_map[trail_index][seq] = new_lock;
-        }
-    }
-
-    // Acquire lock for this specific kmer_t
-    omp_set_lock(&lock_map[trail_index][seq]);
-
-    auto it = Tl[trail_index].find(seq);
-    if (it != Tl[trail_index].end()) {
-        it->second.push_back(mhash_set[ita].subject_id);
-    } else {
-        std::vector<int> create_new;
-        create_new.push_back(mhash_set[ita].subject_id);
-        Tl[trail_index].insert({seq, create_new});
-    }
-
-    // Release lock for this specific kmer_t
-    omp_unset_lock(&lock_map[trail_index][seq]);
-}
-
-// Destroy locks
-for (int i = 0; i < node_threashold; i++) {
-    for (auto& lock_pair : lock_map[i]) {
-        omp_destroy_lock(&lock_pair.second);
-    }
-}*/
-    /*for (int ita = 0; ita < mhash_set.size(); ita++)
-    {
-        auto it = Tl[mhash_set[ita].trail].find(mhash_set[ita].seq);    
-        if(it != Tl[mhash_set[ita].trail].end())
+        auto item = Subject_Hash_Table[mhash_set[ita].trial].find(mhash_set[ita].seq);    
+        if(item != Subject_Hash_Table[mhash_set[ita].trial].end())
         {
-            it->second.push_back(mhash_set[ita].subject_id);
+            if (mhash_set[ita].start_ind == 1)
+            {
+                int s_id = mhash_set[ita].subject_id;
+                item->second.push_back(s_id);
+            }
+            
         }  
         else
         {
-            std::vector<int> create_new;
-            create_new.push_back(mhash_set[ita].subject_id);
-            kmer_t n = mhash_set[ita].seq;
-            Tl[mhash_set[ita].trail].insert({n, create_new});
-            create_new.clear();
-            create_new.shrink_to_fit();
+            if (mhash_set[ita].start_ind == 1)
+            {
+                std::vector<int> create_new;
+                //std::vector<int> create_new_v2;
+                int s_id = mhash_set[ita].subject_id;
+                //std::cout<<rank<<" "<<s_id<<"\n";
+                create_new.push_back(s_id);
+                kmer_t n = mhash_set[ita].seq;
+                Subject_Hash_Table[mhash_set[ita].trial].insert({n, create_new});
+                create_new.clear();
+                create_new.shrink_to_fit();
+                
+            }
+            else
+            {
+                std::vector<int> create_new;
+                //std::vector<int> create_new_v2;
+                int s_id = mhash_set[ita].subject_id;
+                //std::cout<<rank<<" 1 "<<s_id<<"\n";
+                create_new.push_back(s_id);
+                kmer_t n = mhash_set[ita].seq;
+                Subject_Hash_Table[mhash_set[ita].trial].insert({n, create_new});
+                create_new.clear();
+                create_new.shrink_to_fit();
+            }
                             
         }
-    }*/
-    
-    /*std::vector<std::unordered_map<kmer_t, omp_lock_t>> key_locks(node_threashold);
-
-// Initialize locks
-#pragma omp parallel for
-for (int i = 0; i < node_threashold; i++) {
-    for (const auto& kv : Tl[i]) {
-        omp_init_lock(&key_locks[i][kv.first]);
     }
-}
-
-#pragma omp parallel for
-for (int ita = 0; ita < mhash_set.size(); ita++) {
-    int trail_index = mhash_set[ita].trail;
-    kmer_t key = mhash_set[ita].seq;
-
-    #pragma omp critical
-    {
-        if (key_locks[trail_index].find(key) == key_locks[trail_index].end()) {
-            omp_init_lock(&key_locks[trail_index][key]);
-        }
-    }
-    printf("Trail Index: %d\n", trail_index);
-    omp_set_lock(&key_locks[trail_index][key]);
-
-    auto it = Tl[trail_index].find(key);
-    if (it != Tl[trail_index].end()) {
-        it->second.push_back(mhash_set[ita].subject_id);
-    } else {
-        std::vector<int> create_new;
-        create_new.push_back(mhash_set[ita].subject_id);
-        Tl[trail_index].insert({key, create_new});
-    }
-
-    omp_unset_lock(&key_locks[trail_index][key]);
-}
-
-// Destroy locks
-#pragma omp parallel for
-for (int i = 0; i < node_threashold; i++) {
-    for (auto& kv : key_locks[i]) {
-        omp_destroy_lock(&kv.second);
-    }
-}*/
     
     mhash_set.clear();
     mhash_set.shrink_to_fit();
@@ -1847,18 +1403,19 @@ for (int i = 0; i < node_threashold; i++) {
     //{
        // printf("Total q %d %d\n", total_q, rank);
     //}
-    Sliding_window_queires (r_data, r_length, &n_queries, Tl, start_index, total_subjects, total_q);
+    Sliding_window_queires (r_data, r_length, &n_queries, Subject_Hash_Table, start_index, total_subjects, total_q);
     free(r_data);
+    //printf("%d total subject\n", total_s);
+    
     double time_l22 = MPI_Wtime ();
     qsl += time_l22 - time_l11;  
     //double time_l6 = MPI_Wtime ();
     //ss = time_l6 - time_l5; 
-    print_kmer_count_timers();
+    print_timers();
     
     
     
-}    
-
+}
 void genereate_hash_table(int M, int total_subjects, kmer_t **Ag_Hash_Table)
 {
     //MPI_Allreduce(&u_ct, &g_ct, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -1867,10 +1424,10 @@ void genereate_hash_table(int M, int total_subjects, kmer_t **Ag_Hash_Table)
     
     double time_l02 = MPI_Wtime ();
     rd = time_l02 - time_l01;
-    kmer_t** Prefix_table = new kmer_t*[100];
+    kmer_t** Prefix_table = new kmer_t*[w_size];
     double time_l1 = MPI_Wtime ();
-    //int total_hash_functions = 100;
-    for (int g = 0; g < 100; g++) {
+    //int total_hash_functions = w_size;
+    for (int g = 0; g < w_size; g++) {
         Prefix_table[g] = new kmer_t[M];
     }
     
@@ -1882,7 +1439,7 @@ void genereate_hash_table(int M, int total_subjects, kmer_t **Ag_Hash_Table)
     
     kmer_t** Hash_table = new kmer_t*[total_number_of_subs_in_p];
     
-    int total_hash_functions = 100;
+    int total_hash_functions = w_size;
     for (int i = 0; i < total_number_of_subs_in_p; i++) {
         Hash_table[i] = new kmer_t[total_hash_functions];
     }
@@ -1973,7 +1530,7 @@ void genereate_hash_table(int M, int total_subjects, kmer_t **Ag_Hash_Table)
     //ag_time = time_l6 - time_l5;
     delete[] Recv_1d_array;
     /*
-    for(int px = 0; px<100; px++)
+    for(int px = 0; px<w_size; px++)
     {
         //printf("%d %d\n", rank, Px[px]);
     }*/
@@ -2020,7 +1577,7 @@ void generate_set_of_queries (const char *read_data, size_t length, int start_in
     //int total_number_of_subs_in_p = kmer_sets.size();
    /* kmer_t** Hash_table = new kmer_t*[n_queries];
     
-    int total_hash_functions = 100;
+    int total_hash_functions = w_size;
     for (int i = 0; i < n_queries; i++) {
         Hash_table[i] = new kmer_t[total_hash_functions];
     }
@@ -2092,7 +1649,7 @@ void generate_set_of_queries (const char *read_data, size_t length, int start_in
     /*std::vector<std::pair<int, int>> vec1 = {{12\n, 2},
                                       {12, 1},
                                       {12, 3},
-                                      {10, 3}, {10,2}, {10,3}, {10,1}, {10,-1}};*/
+                                      {KMER_LENGTH, 3}, {KMER_LENGTH,2}, {KMER_LENGTH,3}, {KMER_LENGTH,1}, {KMER_LENGTH,-1}};*/
     //std::vector<int> indices_p(vec1.size());
     //std::vector<int> indices_s(suffix_count.size());
     //std::iota(indices_p.begin(), indices_p.end(), 0);

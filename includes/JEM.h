@@ -33,7 +33,6 @@
 // ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". WSU HAS NO
 // OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 //
-
 #ifndef JEM_H
 #define JEM_H
 
@@ -233,6 +232,11 @@ typedef struct begin_kmer_id
 
 } BeginMN;
 
+struct SubjectMapping{
+    int s_id;
+    int q_id;
+    int extn;
+};
 
 
 typedef struct __attribute__ ((__packed__)) kmer_pairs
@@ -243,14 +247,16 @@ typedef struct __attribute__ ((__packed__)) kmer_pairs
 } KmerPairs;
 static_assert(sizeof(KmerPairs) == (sizeof(kmer_t)+sizeof(int)), "struct KmerPairs shouldn't be padded");
 
+/* data structre for Mihash_keys */
 typedef struct __attribute__ ((__packed__)) MinHash_pairs
 { 
-  int trail;
+  int trial;
   kmer_t seq;
+  int start_ind;
   int subject_id;
 
 } MinHashPairs;
-static_assert(sizeof(MinHashPairs) == sizeof(int)+(sizeof(kmer_t)+sizeof(int)), "struct MinHashPairs shouldn't be padded");
+static_assert(sizeof(MinHashPairs) == sizeof(int)+(sizeof(kmer_t)+sizeof(int)+ sizeof(int)), "struct MinHashPairs shouldn't be padded");
 
 typedef struct __attribute__ ((__packed__)) Top_Hit
 { 
@@ -258,7 +264,7 @@ typedef struct __attribute__ ((__packed__)) Top_Hit
   int score;
 
 } TopHit;
-static_assert(sizeof(MinHashPairs) == sizeof(int)+(sizeof(kmer_t)+sizeof(int)), "struct MinHashPairs shouldn't be padded");
+static_assert(sizeof(MinHashPairs) == sizeof(int)+(sizeof(kmer_t)+sizeof(int)+ sizeof(int)), "struct MinHashPairs shouldn't be padded");
 
 //data structure for storing Reads
 typedef struct Rd_Sequence
@@ -267,6 +273,8 @@ typedef struct Rd_Sequence
 	char *read_data;
 	size_t read_data_size;
   int start_index;
+  int local_count;
+  int total;
 
 } input_read_data;
 
@@ -341,6 +349,15 @@ inline kmer_t kmer_shift(kmer_t kmer_in,
   //assert(el>=A && el<=G);
   
   return (kmer_t)((kmer_in<<2) | (kmer_t)el) & (kmer_t)KMER_MASK;
+  //return ((kmer_in<<2) | (kmer_t)el) & KMER_MASK;
+}
+
+inline kmer_t mod_kmer(kmer_t kmer_in, 
+                        kmer_t kmer_out) {
+
+  //assert(el>=A && el<=G);
+  
+  return (kmer_t)((kmer_in<<30) | (kmer_t) kmer_out) & (kmer_t)KMER_MASK;
   //return ((kmer_in<<2) | (kmer_t)el) & KMER_MASK;
 }
 
@@ -439,7 +456,8 @@ input_read_data perform_input_reading (const int rank, const int size,
 
 void Sliding_window_l (const char *ptr, size_t length);
 void Sliding_window (char *ptr, size_t length, int *M_for_individual_process, int *num_subjects,
-                     std::vector<MinHashPairs> &initial_sets, int s_index);
+                     std::vector<MinHashPairs> &initial_sets, std::vector<int> &subject_size, int s_index);
+                     
 
 void process_remaining_kmers(
                      std::vector<std::vector<kmer_t>> &partial_kmer_counts); 
@@ -474,11 +492,11 @@ std::string readFileIntoString(const std::string& path);
 int get_file_size(std::string filename);
 void read_array();
 void get_hash_value(kmer_t **A1, int M, kmer_t **Prefix);
-void generate_set_of_subjects (char *ptr, size_t length, int s_index,char *read_data, size_t r_length, int start_index, int *M_final, int *num_subjects);
+void generate_set_of_subjects (char *ptr, size_t length, int s_index,char *read_data, size_t r_length, int start_index, int total_q, int *M_final, int *num_subjects);
 void genereate_hash_table(int M, int total_subjects, kmer_t **Ag_Hash_Table);
 void get_hash_value_queires(std::vector<std::vector<kmer_t>> &modified_sets, kmer_t **A1);
 void Sliding_window_queires (char *ptr, size_t length, int *num_queries,
-                     std::vector<std::unordered_map<kmer_t, std::vector<int>> > Tl, int start, int total_subjects);
+                     std::vector<std::unordered_map<kmer_t, std::unordered_map<int, std::vector<std::pair<int, int>>>>> Tl, int start, int total_subjects, int total_q, std::vector< int > subject_size, std::vector<SubjectMapping> &subjects);
 void generate_set_of_queries (const char *read_data, size_t length, int start_index, int total_subjects, int M, kmer_t **Ag_Hash_Table);
 void generate_modified_set_queries(int M, std::vector<std::vector<kmer_t>> &previous_sets);
 char convert_to_char (char given_char);
